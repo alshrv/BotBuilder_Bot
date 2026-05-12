@@ -47,7 +47,7 @@ async function fetchUserBots(telegramId: string) {
     const response = await api.get(`/internal/bots/user/${telegramId}`);
     return response.data;
   } catch (error: any) {
-    console.error('Error fetching bots:', error?.response?.data || error.message);
+    console.error('Error fetching bots:', error?.response?.data || error.message || error);
     return [];
   }
 }
@@ -272,9 +272,9 @@ bot.on('message:text', async (ctx) => {
           }
         );
       } catch (error: any) {
-        console.error('Create error:', error?.response?.data || error.message);
+        console.error('Create error:', error?.response?.data || error.message || error);
         const msg = error?.response?.data?.message || 'Failed to create bot.';
-        await ctx.reply(`❌ ${msg}\n\nPlease make sure you have linked your account on the web app.`);
+        await ctx.reply(`❌ ${msg}\n\nPlease try again or contact support if the issue persists.`);
       }
     }
     return;
