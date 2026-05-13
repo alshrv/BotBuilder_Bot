@@ -25,8 +25,7 @@ export function formatDataPayload(type: string, content: string | undefined, pay
         formatted += `🧾 *Version History*\n\n`;
         payload.forEach((v: any) => {
           formatted += `*v${v.versionNum}* ${v.isProd ? '🟢(Prod)' : ''}${v.isTest ? '🟡(Test)' : ''}\n`;
-          formatted += `Prompt: _${v.prompt}_\n`;
-          formatted += `Cost: $${v.cost}\n\n`;
+          formatted += `Prompt: _${v.prompt}_\n\n`;
         });
       }
       break;
