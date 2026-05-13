@@ -1,6 +1,6 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { MyContext } from './types.js';
-import { api } from './api.js';
+import { chatWithUserBot, createUserBot } from './api.js';
 import { formatDataPayload } from './utils.js';
 
 export const messages = new Composer<MyContext>();
@@ -49,26 +49,30 @@ messages.on('message:text', async (ctx) => {
       await ctx.replyWithChatAction('typing');
 
       try {
-        const response = await api.post(`/internal/bots/user/${telegramId}/create`, {
+        const result = await createUserBot(telegramId, {
           name: botName,
           prompt: text,
           token: ctx.session.pendingBot.token,
         });
         
-        ctx.session.activeBotId = response.data.botId;
+        ctx.session.activeBotId = result.botId;
         ctx.session.activeBotName = botName;
         ctx.session.pendingBot = undefined;
         
         await ctx.reply(
           `✅ Bot *${botName}* created successfully! You can now manage it here.`,
-          { 
+          {
             parse_mode: 'Markdown',
-            reply_markup: new InlineKeyboard().text('📊 View Stats', 'get_stats_quick')
+            reply_markup: new InlineKeyboard().text(
+              '📊 View Stats',
+              'get_stats_quick'
+            ),
           }
         );
-      } catch (error: any) {
-        console.error('Create error:', error?.response?.data || error.message || error);
-        const msg = error?.response?.data?.message || 'Failed to create bot.';
+      } catch (error: unknown) {
+        console.error('Create error:', error);
+        const msg =
+          error instanceof Error ? error.message : 'Failed to create bot.';
         await ctx.reply(`❌ ${msg}\n\nPlease try again or contact support if the issue persists.`);
       }
     }
@@ -80,16 +84,16 @@ messages.on('message:text', async (ctx) => {
     return ctx.reply('Please select a bot to manage first using /list or create a new one with /new.');
   }
 
+  const activeBotId = ctx.session.activeBotId;
+
   try {
     await ctx.replyWithChatAction('typing');
 
-    const response = await api.post(`/internal/bots/user/${telegramId}/chat/${ctx.session.activeBotId}`, {
+    const data = await chatWithUserBot(telegramId, activeBotId, {
       message: text,
       history: ctx.session.chatHistory,
     });
 
-    const data = response.data;
-    
     // Add to history
     ctx.session.chatHistory.push({ role: 'user', text });
     if (data.content) {
@@ -97,8 +101,14 @@ messages.on('message:text', async (ctx) => {
     }
 
     if (data.type === 'confirm') {
+      if (!data.action) {
+        return ctx.reply(
+          'The backend asked for confirmation but did not include an action to run.'
+        );
+      }
+
       ctx.session.pendingAction = data.action;
-      await ctx.reply(data.content, {
+      await ctx.reply(data.content || 'Please confirm this backend action.', {
         reply_markup: new InlineKeyboard()
           .text('✅ Yes, Proceed', 'confirm_action')
           .text('❌ Cancel', 'cancel_action'),

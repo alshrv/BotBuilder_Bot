@@ -1,4 +1,4 @@
-export function formatDataPayload(type: string, content: string, payload: any): string {
+export function formatDataPayload(type: string, content: string | undefined, payload: any): string {
   if (!payload) return content || 'Action completed.';
 
   let formatted = content ? `${content}\n\n` : '';

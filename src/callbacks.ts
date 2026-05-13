@@ -1,6 +1,6 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
-import type { MyContext } from './types.js';
-import { api, fetchUserBots } from './api.js';
+import type { BackendBot, MyContext } from './types.js';
+import { chatWithUserBot, fetchUserBots } from './api.js';
 import { formatDataPayload } from './utils.js';
 
 export const callbacks = new Composer<MyContext>();
@@ -21,14 +21,23 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
 callbacks.callbackQuery('list_bots', async (ctx) => {
   await ctx.answerCallbackQuery();
   const telegramId = String(ctx.from?.id);
-  const bots = await fetchUserBots(telegramId);
+  let bots: BackendBot[];
+
+  try {
+    bots = await fetchUserBots(telegramId);
+  } catch (error) {
+    console.error('Error fetching bots:', error);
+    return ctx.reply(
+      'I could not reach the BotBuilder backend. Please try again in a moment.'
+    );
+  }
 
   if (bots.length === 0) {
     return ctx.reply('You haven\'t created any bots yet. Use /new to get started!');
   }
 
   const keyboard = new InlineKeyboard();
-  bots.forEach((b: any) => {
+  bots.forEach((b) => {
     keyboard.text(b.name, `select_bot:${b.id}`).row();
   });
 
@@ -41,7 +50,7 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
   
   try {
     const bots = await fetchUserBots(telegramId);
-    const selectedBot = bots.find((b: any) => b.id === botId);
+    const selectedBot = bots.find((b) => b.id === botId);
     
     if (selectedBot) {
       ctx.session.activeBotId = selectedBot.id;
@@ -64,17 +73,18 @@ callbacks.callbackQuery('confirm_action', async (ctx) => {
   if (!ctx.session.pendingAction || !ctx.session.activeBotId) return;
   
   const telegramId = String(ctx.from?.id);
+  const activeBotId = ctx.session.activeBotId;
+  const pendingAction = ctx.session.pendingAction;
   await ctx.answerCallbackQuery('Confirmed!');
   await ctx.editMessageText('Processing action... ⏳');
 
   try {
-    const response = await api.post(`/internal/bots/user/${telegramId}/chat/${ctx.session.activeBotId}`, {
+    const data = await chatWithUserBot(telegramId, activeBotId, {
       message: 'Yes',
       history: ctx.session.chatHistory,
-      confirmedAction: ctx.session.pendingAction,
+      confirmedAction: pendingAction,
     });
-    
-    const data = response.data;
+
     ctx.session.pendingAction = null;
     
     const finalContent = formatDataPayload(data.type, data.content, data.data);
@@ -87,8 +97,8 @@ callbacks.callbackQuery('confirm_action', async (ctx) => {
     } else {
       await ctx.reply('Action completed successfully.');
     }
-  } catch (error: any) {
-    console.error('Confirm error:', error?.response?.data || error.message);
+  } catch (error: unknown) {
+    console.error('Confirm error:', error);
     await ctx.reply('Error executing confirmed action.');
   }
 });
@@ -101,17 +111,17 @@ callbacks.callbackQuery('cancel_action', async (ctx) => {
 
 callbacks.callbackQuery('get_stats_quick', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+  const activeBotId = ctx.session.activeBotId;
   await ctx.answerCallbackQuery();
-  // Simulate a message to trigger stats
-  ctx.reply('Fetching stats...');
-  // We can call the chat endpoint with "get stats"
+  await ctx.reply('Fetching stats...');
+
   const telegramId = String(ctx.from?.id);
   try {
-    const response = await api.post(`/internal/bots/user/${telegramId}/chat/${ctx.session.activeBotId}`, {
+    const data = await chatWithUserBot(telegramId, activeBotId, {
       message: 'get stats',
       history: ctx.session.chatHistory,
     });
-    const data = response.data;
+
     const finalContent = formatDataPayload(data.type, data.content, data.data);
     if (finalContent) {
       await ctx.reply(finalContent, { parse_mode: 'Markdown' });
@@ -119,6 +129,7 @@ callbacks.callbackQuery('get_stats_quick', async (ctx) => {
       await ctx.reply('Action completed.');
     }
   } catch (error) {
+    console.error('Stats error:', error);
     await ctx.reply('Error fetching stats.');
   }
 });
