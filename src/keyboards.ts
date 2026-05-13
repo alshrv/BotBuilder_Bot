@@ -12,15 +12,18 @@ export function createManagementKeyboard() {
     .text('⚙️ Settings', 'bot_settings');
 }
 
-export function createSettingsKeyboard() {
+export function createSettingsKeyboard(isActive: boolean) {
+  const runtimeAction = isActive
+    ? { label: '⏹ Stop Bot', action: 'bot_control:stop' }
+    : { label: '▶️ Resume Bot', action: 'bot_control:resume' };
+
   return new InlineKeyboard()
-    .text('⏹ Stop', 'bot_control:stop')
-    .text('🔄 Restart', 'bot_control:restart')
+    .text('🔄 Restart Bot', 'bot_control:restart')
+    .text(runtimeAction.label, runtimeAction.action)
     .row()
-    .text('▶️ Resume', 'bot_control:resume')
     .text('🛑 Stop Live Logs', 'bot_logs_stop')
-    .row()
     .text('🗑 Delete Bot', 'bot_delete_confirm')
+    .row()
     .text('⬅️ Back', 'bot_settings_back');
 }
 

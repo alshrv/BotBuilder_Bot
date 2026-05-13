@@ -47,6 +47,18 @@ async function sendFormattedReply(ctx: MyContext, text: string) {
   await ctx.reply(text || 'No data yet.', { parse_mode: 'Markdown' });
 }
 
+async function getActiveBotStatus(ctx: MyContext) {
+  if (!ctx.session.activeBotId) return null;
+
+  const telegramId = String(ctx.from?.id);
+  return fetchBotStatus(telegramId, ctx.session.activeBotId);
+}
+
+async function createActiveBotSettingsKeyboard(ctx: MyContext) {
+  const status = await getActiveBotStatus(ctx);
+  return createSettingsKeyboard(Boolean(status?.isActive));
+}
+
 callbacks.callbackQuery('new_bot', async (ctx) => {
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_managed_bot';
@@ -290,8 +302,9 @@ callbacks.callbackQuery('bot_logs_stop', async (ctx) => {
 
   const stopped = stopLogWatcher(ctx.chat.id, ctx.session.activeBotId);
   await ctx.answerCallbackQuery(stopped ? 'Live logs stopped.' : 'No live log watcher.');
+  const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
   await ctx.reply(stopped ? 'Stopped live logs.' : 'Live logs are not running.', {
-    reply_markup: createSettingsKeyboard(),
+    reply_markup: replyMarkup,
   });
 });
 
@@ -299,8 +312,9 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
   await ctx.answerCallbackQuery();
+  const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
   await ctx.reply('Bot settings:', {
-    reply_markup: createSettingsKeyboard(),
+    reply_markup: replyMarkup,
   });
 });
 
@@ -359,13 +373,15 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
       return;
     }
 
+    const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
     await ctx.reply(result?.message || `Bot ${action} completed.`, {
-      reply_markup: createManagementKeyboard(),
+      reply_markup: replyMarkup,
     });
   } catch (error) {
     console.error(`Bot ${action} failed:`, error);
+    const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
     await ctx.reply(`I could not ${action} the bot right now.`, {
-      reply_markup: createSettingsKeyboard(),
+      reply_markup: replyMarkup,
     });
   }
 });
