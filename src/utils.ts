@@ -14,7 +14,7 @@ export function formatDataPayload(type: string, content: string | undefined, pay
     case 'get_stats':
       formatted += `📊 *Statistics*\n`;
       formatted += `*Environment:* ${payload.environment || 'auto'}\n`;
-      formatted += `*Status:* ${payload.isActive ? 'Active' : 'Inactive'}\n\n`;
+      formatted += `*Current Runtime:* ${payload.isActive ? 'Running' : 'Stopped'}\n\n`;
       formatted += `Messages: *${payload.messageCount}*\n`;
       formatted += `Errors: *${payload.errorCount}*\n`;
       formatted += `Error Rate: *${payload.errorRate}*\n`;
@@ -31,9 +31,19 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       break;
     case 'get_status':
       formatted += `🟢 *${payload.name} Status*\n\n`;
-      formatted += `*Overall:* ${payload.isActive ? 'Active' : 'Inactive'}\n`;
-      formatted += `*Test:* ${payload.testActive ? 'Active' : 'Inactive'}\n`;
-      formatted += `*Production:* ${payload.prodActive ? 'Active' : 'Inactive'}\n`;
+      if (payload.runtime) {
+        formatted += `*Current Runtime:* ${formatRuntimeState(payload.runtime.overall)}\n`;
+        formatted += `*Test:* ${formatRuntimeState(payload.runtime.test?.state)}\n`;
+        formatted += `*Production:* ${formatRuntimeState(payload.runtime.prod?.state)}\n`;
+        formatted += `*Checked:* ${formatCheckedAt(payload.runtime.checkedAt)}\n`;
+      } else {
+        formatted += `*Current Runtime:* ${payload.isActive ? 'Running' : 'Stopped'}\n`;
+        formatted += `*Test:* ${payload.testActive ? 'Running' : 'Stopped'}\n`;
+        formatted += `*Production:* ${payload.prodActive ? 'Running' : 'Stopped'}\n`;
+      }
+      if (payload.desiredState) {
+        formatted += `\n*Stored State:* ${payload.desiredState.isActive ? 'Active' : 'Inactive'}\n`;
+      }
       if (payload.latestVersion) {
         formatted += `\n*Latest Version:* v${payload.latestVersion.versionNum}\n`;
         formatted += `*Prompt:* _${payload.latestVersion.prompt}_`;
@@ -48,4 +58,28 @@ export function formatDataPayload(type: string, content: string | undefined, pay
   }
 
   return formatted.trim();
+}
+
+function formatRuntimeState(state?: string) {
+  switch (state) {
+    case 'running':
+      return 'Running';
+    case 'launching':
+      return 'Starting';
+    case 'errored':
+      return 'Errored';
+    case 'unknown':
+      return 'Unknown';
+    case 'stopped':
+    default:
+      return 'Stopped';
+  }
+}
+
+function formatCheckedAt(value?: string) {
+  if (!value) return 'Unknown';
+  return new Date(value).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }

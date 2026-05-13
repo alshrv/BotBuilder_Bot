@@ -45,6 +45,27 @@ export interface BotStatus {
   isActive: boolean;
   testActive: boolean;
   prodActive: boolean;
+  desiredState?: {
+    isActive: boolean;
+    testActive: boolean;
+    prodActive: boolean;
+  };
+  runtime?: {
+    overall: string;
+    checkedAt: string;
+    test: {
+      state: string;
+      pm2Status?: string;
+      restartCount?: number;
+      pid?: number;
+    };
+    prod: {
+      state: string;
+      pm2Status?: string;
+      restartCount?: number;
+      pid?: number;
+    };
+  };
   hasTestToken: boolean;
   hasProdToken: boolean;
   latestVersion: {
