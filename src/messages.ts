@@ -7,6 +7,24 @@ import { formatDataPayload } from './utils.js';
 
 export const messages = new Composer<MyContext>();
 
+async function editFlowMessageOrReply(
+  ctx: MyContext,
+  text: string,
+  extra = {},
+) {
+  if (ctx.chat?.id && ctx.session.flowMessageId) {
+    try {
+      await ctx.api.editMessageText(ctx.chat.id, ctx.session.flowMessageId, text, extra);
+      return;
+    } catch {
+      delete ctx.session.flowMessageId;
+    }
+  }
+
+  const message = await ctx.reply(text, extra);
+  ctx.session.flowMessageId = message.message_id;
+}
+
 // Managed Bot Created handler
 messages.on('message:managed_bot_created', async (ctx) => {
   const managedBot = ctx.message.managed_bot_created.bot;
@@ -44,15 +62,16 @@ messages.on('message:managed_bot_created', async (ctx) => {
       }
       ctx.session.step = undefined;
 
-      await ctx.reply(
-        `✅ ${result.message} ${formatBotUsername(ctx.session.activeBotUsername)} is ready again.`,
+      await editFlowMessageOrReply(
+        ctx,
+        `✅ ${result.message} ${formatBotUsername(ctx.session.activeBotUsername)} is ready again.\n\nBot management is available again.`,
         {
-          reply_markup: { remove_keyboard: true },
+          parse_mode: 'Markdown',
+          reply_markup: createManagementKeyboard(),
         }
       );
-      return ctx.reply('Bot management is available again.', {
-        reply_markup: createManagementKeyboard(),
-      });
+      delete ctx.session.flowMessageId;
+      return;
     }
     
     // Save pending info
@@ -106,7 +125,7 @@ messages.on('message:text', async (ctx) => {
       const botName = ctx.session.pendingBot.name;
       ctx.session.step = undefined;
       
-      await ctx.reply(`Creating *${botName}*... this might take a minute ⏳`, { parse_mode: 'Markdown' });
+      const progress = await ctx.reply(`Creating *${botName}*... this might take a minute ⏳`, { parse_mode: 'Markdown' });
       await ctx.replyWithChatAction('typing');
 
       try {
@@ -133,7 +152,9 @@ messages.on('message:text', async (ctx) => {
         }
         ctx.session.pendingBot = undefined;
         
-        await ctx.reply(
+        await ctx.api.editMessageText(
+          ctx.chat.id,
+          progress.message_id,
           `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
           {
             parse_mode: 'Markdown',
@@ -144,7 +165,11 @@ messages.on('message:text', async (ctx) => {
         console.error('Create error:', error);
         const msg =
           error instanceof Error ? error.message : 'Failed to create bot.';
-        await ctx.reply(`❌ ${msg}\n\nPlease try again or contact support if the issue persists.`);
+        await ctx.api.editMessageText(
+          ctx.chat.id,
+          progress.message_id,
+          `❌ ${msg}\n\nPlease try again or contact support if the issue persists.`
+        );
       }
     }
     return;

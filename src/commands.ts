@@ -40,9 +40,10 @@ commands.command('new', async (ctx) => {
     .resized()
     .oneTime();
 
-  await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
+  const message = await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
     reply_markup: keyboard,
   });
+  ctx.session.flowMessageId = message.message_id;
 });
 
 commands.command(['list', 'select'], async (ctx) => {

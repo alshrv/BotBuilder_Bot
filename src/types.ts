@@ -92,6 +92,7 @@ export interface SessionData {
   activeBotId?: string; 
   activeBotName?: string;
   activeBotUsername?: string;
+  flowMessageId?: number;
   chatHistory: ChatHistoryItem[];
   step?:
     | 'awaiting_managed_bot'

@@ -53,6 +53,14 @@ async function sendFormattedReply(ctx: MyContext, text: string) {
   await ctx.reply(text || 'No data yet.', { parse_mode: 'Markdown' });
 }
 
+async function editMessageOrReply(ctx: MyContext, text: string, extra = {}) {
+  try {
+    await ctx.editMessageText(text, extra);
+  } catch {
+    await ctx.reply(text, extra);
+  }
+}
+
 function isTokenInvalid(status?: string | null) {
   return status === 'token_invalid';
 }
@@ -87,9 +95,10 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
     .resized()
     .oneTime();
 
-  await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
+  const message = await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
     reply_markup: keyboard,
   });
+  ctx.session.flowMessageId = message.message_id;
 });
 
 callbacks.callbackQuery('list_bots', async (ctx) => {
@@ -144,7 +153,8 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
       ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
       if (isTokenInvalid(selectedBot.status)) {
-        await ctx.reply(
+        await editMessageOrReply(
+          ctx,
           formatTokenInvalidMessage(
             selectedBot.name,
             selectedBot.telegramUsername
@@ -157,7 +167,8 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
         return;
       }
 
-      await ctx.reply(
+      await editMessageOrReply(
+        ctx,
         `Now managing *${selectedBot.name}* (${formatBotUsername(selectedBot.telegramUsername)}).`,
         {
           parse_mode: 'Markdown',
@@ -284,7 +295,7 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       result.data &&
       isTokenInvalid((result.data as any).status)
     ) {
-      await ctx.reply(finalContent, {
+      await editMessageOrReply(ctx, finalContent, {
         parse_mode: 'Markdown',
         reply_markup: createTokenInvalidKeyboard(),
       });
@@ -360,7 +371,7 @@ callbacks.callbackQuery('bot_logs_stop', async (ctx) => {
   const stopped = stopLogWatcher(ctx.chat.id, ctx.session.activeBotId);
   await ctx.answerCallbackQuery(stopped ? 'Live logs stopped.' : 'No live log watcher.');
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-  await ctx.reply(stopped ? 'Stopped live logs.' : 'Live logs are not running.', {
+  await editMessageOrReply(ctx, stopped ? 'Stopped live logs.' : 'Live logs are not running.', {
     reply_markup: replyMarkup,
   });
 });
@@ -370,7 +381,7 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-  await ctx.reply('Bot settings:', {
+  await editMessageOrReply(ctx, 'Bot settings:', {
     reply_markup: replyMarkup,
   });
 });
@@ -385,19 +396,21 @@ callbacks.callbackQuery('bot_update_token', async (ctx) => {
     .resized()
     .oneTime();
 
-  await ctx.reply(
+  const message = await ctx.reply(
     "Click the button below and choose the replacement bot from Telegram's prompt.",
     {
       reply_markup: keyboard,
     }
   );
+  ctx.session.flowMessageId = message.message_id;
 });
 
 callbacks.callbackQuery('bot_delete_confirm', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(
+  await editMessageOrReply(
+    ctx,
     `Delete *${ctx.session.activeBotName || 'this bot'}*?\n\nThis stops the bot and removes its versions and logs.`,
     {
       parse_mode: 'Markdown',
@@ -410,7 +423,8 @@ callbacks.callbackQuery('bot_settings_back', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(
+  await editMessageOrReply(
+    ctx,
     `Now managing *${ctx.session.activeBotName || 'this bot'}* (${formatBotUsername(ctx.session.activeBotUsername)}).`,
     {
       parse_mode: 'Markdown',
@@ -427,7 +441,7 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
   const telegramId = String(ctx.from?.id);
 
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(`Processing ${action}...`);
+  await editMessageOrReply(ctx, `Processing ${action}...`);
 
   try {
     const result =
@@ -445,18 +459,18 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
       delete ctx.session.activeBotName;
       delete ctx.session.activeBotUsername;
       ctx.session.chatHistory = [];
-      await ctx.reply(result?.message || 'Bot deleted.');
+      await editMessageOrReply(ctx, result?.message || 'Bot deleted.');
       return;
     }
 
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-    await ctx.reply(result?.message || `Bot ${action} completed.`, {
+    await editMessageOrReply(ctx, result?.message || `Bot ${action} completed.`, {
       reply_markup: replyMarkup,
     });
   } catch (error) {
     console.error(`Bot ${action} failed:`, error);
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-    await ctx.reply(`I could not ${action} the bot right now.`, {
+    await editMessageOrReply(ctx, `I could not ${action} the bot right now.`, {
       reply_markup: replyMarkup,
     });
   }
