@@ -16,6 +16,7 @@ import {
   createDeleteConfirmKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
+  createTokenInvalidKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 import {
@@ -52,6 +53,17 @@ async function sendFormattedReply(ctx: MyContext, text: string) {
   await ctx.reply(text || 'No data yet.', { parse_mode: 'Markdown' });
 }
 
+function isTokenInvalid(status?: string | null) {
+  return status === 'token_invalid';
+}
+
+function formatTokenInvalidMessage(name?: string, username?: string | null) {
+  const label = username
+    ? `@${username.trim().replace(/^@/, '')}`
+    : name || 'This bot';
+  return `🔑 *${label}* has an invalid token\n\nIt may have been deleted from @BotFather.`;
+}
+
 async function getActiveBotStatus(ctx: MyContext) {
   if (!ctx.session.activeBotId) return null;
 
@@ -61,7 +73,10 @@ async function getActiveBotStatus(ctx: MyContext) {
 
 async function createActiveBotSettingsKeyboard(ctx: MyContext) {
   const status = await getActiveBotStatus(ctx);
-  return createSettingsKeyboard(Boolean(status?.isActive));
+  return createSettingsKeyboard(
+    Boolean(status?.isActive),
+    isTokenInvalid(status?.status)
+  );
 }
 
 callbacks.callbackQuery('new_bot', async (ctx) => {
@@ -128,6 +143,20 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
       }
       ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
+      if (isTokenInvalid(selectedBot.status)) {
+        await ctx.reply(
+          formatTokenInvalidMessage(
+            selectedBot.name,
+            selectedBot.telegramUsername
+          ),
+          {
+            parse_mode: 'Markdown',
+            reply_markup: createTokenInvalidKeyboard(),
+          }
+        );
+        return;
+      }
+
       await ctx.reply(
         `Now managing *${selectedBot.name}* (${formatBotUsername(selectedBot.telegramUsername)}).`,
         {
@@ -250,7 +279,18 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       result.data
     );
 
-    await sendFormattedReply(ctx, finalContent);
+    if (
+      action === 'status' &&
+      result.data &&
+      isTokenInvalid((result.data as any).status)
+    ) {
+      await ctx.reply(finalContent, {
+        parse_mode: 'Markdown',
+        reply_markup: createTokenInvalidKeyboard(),
+      });
+    } else {
+      await sendFormattedReply(ctx, finalContent);
+    }
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
     await ctx.reply('I could not load that bot detail right now.');
@@ -333,6 +373,24 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
   await ctx.reply('Bot settings:', {
     reply_markup: replyMarkup,
   });
+});
+
+callbacks.callbackQuery('bot_update_token', async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  await ctx.answerCallbackQuery();
+  ctx.session.step = 'awaiting_update_managed_bot';
+  const keyboard = new Keyboard()
+    .requestManagedBot('🔑 Update Token', 1)
+    .resized()
+    .oneTime();
+
+  await ctx.reply(
+    "Click the button below and choose the replacement bot from Telegram's prompt.",
+    {
+      reply_markup: keyboard,
+    }
+  );
 });
 
 callbacks.callbackQuery('bot_delete_confirm', async (ctx) => {

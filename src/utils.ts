@@ -30,7 +30,11 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       }
       break;
     case 'get_status':
-      formatted += `🟢 *${payload.name} Status*\n\n`;
+      formatted += `${payload.status === 'token_invalid' ? '🔑' : '🟢'} *${payload.name} Status*\n\n`;
+      if (payload.status === 'token_invalid') {
+        formatted += `🔑 Token invalid — bot deleted from BotFather\n`;
+        break;
+      }
       if (payload.runtime) {
         formatted += `*Current Runtime:* ${formatRuntimeState(payload.runtime.overall)}\n`;
         formatted += `*Test:* ${formatRuntimeState(payload.runtime.test?.state)}\n`;

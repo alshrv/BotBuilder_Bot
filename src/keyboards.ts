@@ -12,7 +12,11 @@ export function createManagementKeyboard() {
     .text('⚙️ Settings', 'bot_settings');
 }
 
-export function createSettingsKeyboard(isActive: boolean) {
+export function createSettingsKeyboard(isActive: boolean, isTokenInvalid = false) {
+  if (isTokenInvalid) {
+    return createTokenInvalidKeyboard();
+  }
+
   const runtimeAction = isActive
     ? { label: '⏹ Stop Bot', action: 'bot_control:stop' }
     : { label: '▶️ Resume Bot', action: 'bot_control:resume' };
@@ -25,6 +29,12 @@ export function createSettingsKeyboard(isActive: boolean) {
     .text('🗑 Delete Bot', 'bot_delete_confirm')
     .row()
     .text('⬅️ Back', 'bot_settings_back');
+}
+
+export function createTokenInvalidKeyboard() {
+  return new InlineKeyboard()
+    .text('🔑 Update Token', 'bot_update_token')
+    .text('🗑 Delete Bot', 'bot_delete_confirm');
 }
 
 export function createDeleteConfirmKeyboard() {

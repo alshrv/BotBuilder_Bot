@@ -8,6 +8,7 @@ import type {
   BotStatus,
   ChatHistoryItem,
   CreateBotResult,
+  UpdateBotTokenResult,
 } from './types.js';
 
 export const api = axios.create({
@@ -197,5 +198,25 @@ export async function deleteBot(telegramId: string, botId: string) {
     return response.data;
   } catch (error: unknown) {
     throw toBackendApiError(error, 'Failed to delete bot.');
+  }
+}
+
+export async function updateBotToken(
+  telegramId: string,
+  botId: string,
+  input: {
+    token: string;
+    telegramUsername?: string;
+    environment?: BotEnvironment;
+  }
+): Promise<UpdateBotTokenResult> {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/token`,
+      input
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to update bot token.');
   }
 }

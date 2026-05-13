@@ -10,6 +10,7 @@ export interface BackendBot {
   name: string;
   telegramUsername?: string | null;
   botId?: string;
+  status?: string;
   isActive?: boolean;
   activeProdVersionId?: string | null;
   activeTestVersionId?: string | null;
@@ -24,6 +25,14 @@ export interface CreateBotResult {
   message: string;
   botId: string;
   versionId: string;
+}
+
+export interface UpdateBotTokenResult {
+  success: boolean;
+  message: string;
+  status: string;
+  environment: BotEnvironment;
+  telegramUsername?: string | null;
 }
 
 export interface BackendAction {
@@ -41,6 +50,7 @@ export interface BackendChatResponse {
 export interface BotStatus {
   id: string;
   name: string;
+  status?: string;
   runtimeBotId: string;
   isActive: boolean;
   testActive: boolean;
@@ -83,7 +93,12 @@ export interface SessionData {
   activeBotName?: string;
   activeBotUsername?: string;
   chatHistory: ChatHistoryItem[];
-  step?: 'awaiting_managed_bot' | 'awaiting_bot_prompt' | 'awaiting_confirmation' | undefined;
+  step?:
+    | 'awaiting_managed_bot'
+    | 'awaiting_bot_prompt'
+    | 'awaiting_update_managed_bot'
+    | 'awaiting_confirmation'
+    | undefined;
   pendingBot?: {
     name: string;
     prompt: string;

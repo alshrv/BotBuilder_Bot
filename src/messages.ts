@@ -1,6 +1,6 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { MyContext } from './types.js';
-import { chatWithUserBot, createUserBot } from './api.js';
+import { chatWithUserBot, createUserBot, updateBotToken } from './api.js';
 import { formatBotUsername } from './bot-display.js';
 import { createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
@@ -16,6 +16,44 @@ messages.on('message:managed_bot_created', async (ctx) => {
   
   try {
     const token = await ctx.api.getManagedBotToken(botId);
+
+    if (ctx.session.step === 'awaiting_update_managed_bot') {
+      if (!ctx.session.activeBotId) {
+        ctx.session.step = undefined;
+        return ctx.reply('Please select a bot to update first using /list.', {
+          reply_markup: { remove_keyboard: true },
+        });
+      }
+
+      const telegramId = String(ctx.from?.id);
+      const updateInput: { token: string; telegramUsername?: string } = {
+        token,
+      };
+      if (botUsername) {
+        updateInput.telegramUsername = botUsername;
+      }
+
+      const result = await updateBotToken(
+        telegramId,
+        ctx.session.activeBotId,
+        updateInput
+      );
+
+      if (botUsername) {
+        ctx.session.activeBotUsername = botUsername;
+      }
+      ctx.session.step = undefined;
+
+      await ctx.reply(
+        `✅ ${result.message} ${formatBotUsername(ctx.session.activeBotUsername)} is ready again.`,
+        {
+          reply_markup: { remove_keyboard: true },
+        }
+      );
+      return ctx.reply('Bot management is available again.', {
+        reply_markup: createManagementKeyboard(),
+      });
+    }
     
     // Save pending info
     ctx.session.pendingBot = {
@@ -35,7 +73,13 @@ messages.on('message:managed_bot_created', async (ctx) => {
     );
   } catch (error) {
     console.error('Error retrieving bot token:', error);
-    await ctx.reply('Error retrieving bot token from Telegram. Please try again or type /cancel.', { reply_markup: { remove_keyboard: true } });
+    const msg =
+      error instanceof Error
+        ? error.message
+        : 'Error retrieving bot token from Telegram.';
+    await ctx.reply(`${msg} Please try again or type /cancel.`, {
+      reply_markup: { remove_keyboard: true },
+    });
   }
 });
 
@@ -45,8 +89,15 @@ messages.on('message:text', async (ctx) => {
   const text = ctx.message.text;
 
   // Creation Flow
-  if (ctx.session.step === 'awaiting_managed_bot') {
-    return ctx.reply('Please use the "➕ Create Managed Bot" button below to create your bot, or type /cancel to abort.');
+  if (
+    ctx.session.step === 'awaiting_managed_bot' ||
+    ctx.session.step === 'awaiting_update_managed_bot'
+  ) {
+    const action =
+      ctx.session.step === 'awaiting_update_managed_bot'
+        ? 'update the token'
+        : 'create your bot';
+    return ctx.reply(`Please use the button below to ${action}, or type /cancel to abort.`);
   }
 
   if (ctx.session.step === 'awaiting_bot_prompt') {
