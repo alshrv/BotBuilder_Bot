@@ -37,6 +37,8 @@ commands.command('new', async (ctx) => {
   ctx.session.step = 'awaiting_managed_bot';
   const keyboard = new Keyboard()
     .requestManagedBot('➕ Create Managed Bot', 1)
+    .row()
+    .text('❌ Cancel')
     .resized()
     .oneTime();
 

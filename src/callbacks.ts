@@ -61,6 +61,12 @@ async function editMessageOrReply(ctx: MyContext, text: string, extra = {}) {
   }
 }
 
+function clearFlowSession(ctx: MyContext) {
+  ctx.session.step = undefined;
+  ctx.session.pendingBot = undefined;
+  ctx.session.pendingAction = undefined;
+}
+
 function isTokenInvalid(status?: string | null) {
   return status === 'token_invalid';
 }
@@ -92,6 +98,8 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
   ctx.session.step = 'awaiting_managed_bot';
   const keyboard = new Keyboard()
     .requestManagedBot('➕ Create Managed Bot', 1)
+    .row()
+    .text('❌ Cancel')
     .resized()
     .oneTime();
 
@@ -99,6 +107,13 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
     reply_markup: keyboard,
   });
   ctx.session.flowMessageId = message.message_id;
+});
+
+callbacks.callbackQuery('flow_cancel', async (ctx) => {
+  clearFlowSession(ctx);
+  await ctx.answerCallbackQuery('Cancelled');
+  await editMessageOrReply(ctx, 'Operation cancelled.');
+  delete ctx.session.flowMessageId;
 });
 
 callbacks.callbackQuery('list_bots', async (ctx) => {
@@ -393,6 +408,8 @@ callbacks.callbackQuery('bot_update_token', async (ctx) => {
   ctx.session.step = 'awaiting_update_managed_bot';
   const keyboard = new Keyboard()
     .requestManagedBot('🔑 Update Token', 1)
+    .row()
+    .text('❌ Cancel')
     .resized()
     .oneTime();
 

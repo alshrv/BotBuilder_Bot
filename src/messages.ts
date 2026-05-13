@@ -2,7 +2,7 @@ import { Composer, InlineKeyboard } from 'grammy';
 import type { MyContext } from './types.js';
 import { chatWithUserBot, createUserBot, updateBotToken } from './api.js';
 import { formatBotUsername } from './bot-display.js';
-import { createManagementKeyboard } from './keyboards.js';
+import { createFlowCancelKeyboard, createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const messages = new Composer<MyContext>();
@@ -23,6 +23,25 @@ async function editFlowMessageOrReply(
 
   const message = await ctx.reply(text, extra);
   ctx.session.flowMessageId = message.message_id;
+}
+
+function clearFlowSession(ctx: MyContext) {
+  ctx.session.step = undefined;
+  ctx.session.pendingBot = undefined;
+  ctx.session.pendingAction = undefined;
+}
+
+async function removeReplyKeyboard(ctx: MyContext) {
+  if (!ctx.chat?.id) return;
+
+  try {
+    const message = await ctx.reply(' ', {
+      reply_markup: { remove_keyboard: true },
+    });
+    await ctx.api.deleteMessage(ctx.chat.id, message.message_id);
+  } catch {
+    // Best-effort cleanup only.
+  }
 }
 
 // Managed Bot Created handler
@@ -85,11 +104,15 @@ messages.on('message:managed_bot_created', async (ctx) => {
     }
     ctx.session.step = 'awaiting_bot_prompt';
     
-    // Remove the custom keyboard
-    await ctx.reply(
+    await editFlowMessageOrReply(
+      ctx,
       `🎉 Great! You've successfully created *${botName}*.\n\nNow, tell me what this bot should do. For example:\n_"A bot that sends a random joke every morning"_`,
-      { reply_markup: { remove_keyboard: true }, parse_mode: 'Markdown' }
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createFlowCancelKeyboard(),
+      }
     );
+    await removeReplyKeyboard(ctx);
   } catch (error) {
     console.error('Error retrieving bot token:', error);
     const msg =
@@ -106,6 +129,20 @@ messages.on('message:managed_bot_created', async (ctx) => {
 messages.on('message:text', async (ctx) => {
   const telegramId = String(ctx.from?.id);
   const text = ctx.message.text;
+
+  if (
+    (text === 'Cancel' || text === '❌ Cancel') &&
+    (ctx.session.step === 'awaiting_managed_bot' ||
+      ctx.session.step === 'awaiting_update_managed_bot' ||
+      ctx.session.step === 'awaiting_bot_prompt')
+  ) {
+    clearFlowSession(ctx);
+    await removeReplyKeyboard(ctx);
+    await ctx.deleteMessage().catch(() => undefined);
+    await editFlowMessageOrReply(ctx, 'Operation cancelled.');
+    delete ctx.session.flowMessageId;
+    return;
+  }
 
   // Creation Flow
   if (

@@ -37,6 +37,10 @@ export function createTokenInvalidKeyboard() {
     .text('🗑 Delete Bot', 'bot_delete_confirm');
 }
 
+export function createFlowCancelKeyboard() {
+  return new InlineKeyboard().text('❌ Cancel', 'flow_cancel');
+}
+
 export function createDeleteConfirmKeyboard() {
   return new InlineKeyboard()
     .text('Yes, delete', 'bot_control:delete')
