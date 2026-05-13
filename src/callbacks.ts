@@ -18,6 +18,11 @@ import {
   createSettingsKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
+import {
+  formatBotButtonLabel,
+  formatBotListItem,
+  formatBotUsername,
+} from './bot-display.js';
 
 export const callbacks = new Composer<MyContext>();
 const logWatchers = new Map<string, ReturnType<typeof setInterval>>();
@@ -92,10 +97,17 @@ callbacks.callbackQuery('list_bots', async (ctx) => {
 
   const keyboard = new InlineKeyboard();
   bots.forEach((b) => {
-    keyboard.text(b.name, `select_bot:${b.id}`).row();
+    keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
 
-  await ctx.editMessageText('Select a bot to manage:', { reply_markup: keyboard });
+  const botList = bots.map(formatBotListItem).join('\n');
+  await ctx.editMessageText(
+    `*Your bots*\n${botList}\n\nSelect a bot to manage:`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard,
+    }
+  );
 });
 
 callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
@@ -109,10 +121,15 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
     if (selectedBot) {
       ctx.session.activeBotId = selectedBot.id;
       ctx.session.activeBotName = selectedBot.name;
+      if (selectedBot.telegramUsername) {
+        ctx.session.activeBotUsername = selectedBot.telegramUsername;
+      } else {
+        delete ctx.session.activeBotUsername;
+      }
       ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
       await ctx.reply(
-        `Now managing *${selectedBot.name}*.`,
+        `Now managing *${selectedBot.name}* (${formatBotUsername(selectedBot.telegramUsername)}).`,
         {
           parse_mode: 'Markdown',
           reply_markup: createManagementKeyboard(),
@@ -336,7 +353,7 @@ callbacks.callbackQuery('bot_settings_back', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   await ctx.editMessageText(
-    `Now managing *${ctx.session.activeBotName || 'this bot'}*.`,
+    `Now managing *${ctx.session.activeBotName || 'this bot'}* (${formatBotUsername(ctx.session.activeBotUsername)}).`,
     {
       parse_mode: 'Markdown',
       reply_markup: createManagementKeyboard(),
@@ -368,6 +385,7 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
       if (ctx.chat?.id) stopLogWatcher(ctx.chat.id, activeBotId);
       delete ctx.session.activeBotId;
       delete ctx.session.activeBotName;
+      delete ctx.session.activeBotUsername;
       ctx.session.chatHistory = [];
       await ctx.reply(result?.message || 'Bot deleted.');
       return;

@@ -8,6 +8,7 @@ export interface ChatHistoryItem {
 export interface BackendBot {
   id: string;
   name: string;
+  telegramUsername?: string | null;
   botId?: string;
   isActive?: boolean;
   activeProdVersionId?: string | null;
@@ -59,9 +60,15 @@ export interface BotStatus {
 export interface SessionData {
   activeBotId?: string; 
   activeBotName?: string;
+  activeBotUsername?: string;
   chatHistory: ChatHistoryItem[];
   step?: 'awaiting_managed_bot' | 'awaiting_bot_prompt' | 'awaiting_confirmation' | undefined;
-  pendingBot?: { name: string; prompt: string; token: string } | undefined;
+  pendingBot?: {
+    name: string;
+    prompt: string;
+    token: string;
+    username?: string;
+  } | undefined;
   pendingAction?: BackendAction | null | undefined;
 }
 

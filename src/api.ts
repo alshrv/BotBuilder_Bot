@@ -61,7 +61,12 @@ export async function fetchUserBots(telegramId: string): Promise<BackendBot[]> {
 
 export async function createUserBot(
   telegramId: string,
-  input: { name: string; prompt: string; token: string }
+  input: {
+    name: string;
+    prompt: string;
+    token: string;
+    telegramUsername?: string;
+  }
 ): Promise<CreateBotResult> {
   try {
     const response = await api.post(

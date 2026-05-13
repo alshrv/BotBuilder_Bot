@@ -1,6 +1,7 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
 import { fetchUserBots } from './api.js';
+import { formatBotButtonLabel, formatBotListItem } from './bot-display.js';
 
 export const commands = new Composer<MyContext>();
 
@@ -63,10 +64,14 @@ commands.command(['list', 'select'], async (ctx) => {
 
   const keyboard = new InlineKeyboard();
   bots.forEach((b) => {
-    keyboard.text(b.name, `select_bot:${b.id}`).row();
+    keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
 
-  await ctx.reply('Select a bot to manage:', { reply_markup: keyboard });
+  const botList = bots.map(formatBotListItem).join('\n');
+  await ctx.reply(`*Your bots*\n${botList}\n\nSelect a bot to manage:`, {
+    parse_mode: 'Markdown',
+    reply_markup: keyboard,
+  });
 });
 
 commands.command('cancel', async (ctx) => {

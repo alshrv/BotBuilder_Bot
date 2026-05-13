@@ -1,6 +1,7 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { MyContext } from './types.js';
 import { chatWithUserBot, createUserBot } from './api.js';
+import { formatBotUsername } from './bot-display.js';
 import { createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
@@ -11,12 +12,20 @@ messages.on('message:managed_bot_created', async (ctx) => {
   const managedBot = ctx.message.managed_bot_created.bot;
   const botId = managedBot.id;
   const botName = managedBot.first_name;
+  const botUsername = managedBot.username;
   
   try {
     const token = await ctx.api.getManagedBotToken(botId);
     
     // Save pending info
-    ctx.session.pendingBot = { name: botName, token, prompt: '' };
+    ctx.session.pendingBot = {
+      name: botName,
+      token,
+      prompt: '',
+    };
+    if (botUsername) {
+      ctx.session.pendingBot.username = botUsername;
+    }
     ctx.session.step = 'awaiting_bot_prompt';
     
     // Remove the custom keyboard
@@ -50,18 +59,31 @@ messages.on('message:text', async (ctx) => {
       await ctx.replyWithChatAction('typing');
 
       try {
-        const result = await createUserBot(telegramId, {
+        const createInput: {
+          name: string;
+          prompt: string;
+          token: string;
+          telegramUsername?: string;
+        } = {
           name: botName,
           prompt: text,
           token: ctx.session.pendingBot.token,
-        });
+        };
+        if (ctx.session.pendingBot.username) {
+          createInput.telegramUsername = ctx.session.pendingBot.username;
+        }
+
+        const result = await createUserBot(telegramId, createInput);
         
         ctx.session.activeBotId = result.botId;
         ctx.session.activeBotName = botName;
+        if (ctx.session.pendingBot.username) {
+          ctx.session.activeBotUsername = ctx.session.pendingBot.username;
+        }
         ctx.session.pendingBot = undefined;
         
         await ctx.reply(
-          `✅ Bot *${botName}* created successfully! You can now manage it here.`,
+          `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
           {
             parse_mode: 'Markdown',
             reply_markup: createManagementKeyboard(),
