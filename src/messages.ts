@@ -1,6 +1,6 @@
 import { Composer, InlineKeyboard } from 'grammy';
-import type { MyContext } from './types.js';
-import { chatWithUserBot, createUserBot, updateBotToken } from './api.js';
+import type { BotStatus, MyContext } from './types.js';
+import { chatWithUserBot, createUserBot, fetchBotStatus, updateBotToken } from './api.js';
 import { formatBotUsername } from './bot-display.js';
 import { createFlowCancelKeyboard, createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
@@ -29,6 +29,37 @@ function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
   ctx.session.pendingAction = undefined;
+}
+
+function formatBotState(status?: BotStatus | null) {
+  if (!status) return 'Unknown';
+  if (status.status === 'token_invalid') return 'Token invalid';
+  if (status.runtime?.overall === 'running' || status.isActive) return 'Running';
+  if (status.runtime?.overall === 'launching') return 'Starting';
+  if (status.runtime?.overall === 'errored') return 'Errored';
+  return 'Stopped';
+}
+
+function formatCurrentVersion(status?: BotStatus | null) {
+  return status?.latestVersion ? `v${status.latestVersion.versionNum}` : 'None';
+}
+
+async function formatManagementMessage(
+  ctx: MyContext,
+  prefix: string,
+) {
+  const status = ctx.session.activeBotId
+    ? await fetchBotStatus(String(ctx.from?.id), ctx.session.activeBotId).catch(
+        () => null,
+      )
+    : null;
+
+  return [
+    prefix,
+    '',
+    `*Bot state:* ${formatBotState(status)}`,
+    `*Current version:* ${formatCurrentVersion(status)}`,
+  ].join('\n');
 }
 
 async function removeReplyKeyboard(ctx: MyContext) {
@@ -99,7 +130,10 @@ messages.on('message:managed_bot_created', async (ctx) => {
 
       await editFlowMessageOrReply(
         ctx,
-        `✅ ${result.message} ${formatBotUsername(ctx.session.activeBotUsername)} is ready again.\n\nBot management is available again.`,
+        await formatManagementMessage(
+          ctx,
+          `✅ ${result.message} ${formatBotUsername(ctx.session.activeBotUsername)} is ready again.`,
+        ),
         {
           parse_mode: 'Markdown',
           reply_markup: createManagementKeyboard(),
@@ -202,7 +236,10 @@ messages.on('message:text', async (ctx) => {
         await ctx.api.editMessageText(
           ctx.chat.id,
           progress.message_id,
-          `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
+          await formatManagementMessage(
+            ctx,
+            `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
+          ),
           {
             parse_mode: 'Markdown',
             reply_markup: createManagementKeyboard(),

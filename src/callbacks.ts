@@ -13,6 +13,7 @@ import {
   stopBot,
 } from './api.js';
 import {
+  createBackToManagementKeyboard,
   createDeleteConfirmKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
@@ -24,6 +25,7 @@ import {
   formatBotListItem,
   formatBotUsername,
 } from './bot-display.js';
+import type { BotStatus } from './types.js';
 
 export const callbacks = new Composer<MyContext>();
 const logWatchers = new Map<string, ReturnType<typeof setInterval>>();
@@ -61,6 +63,14 @@ async function editMessageOrReply(ctx: MyContext, text: string, extra = {}) {
   }
 }
 
+function isLiveLogsActive(ctx: MyContext) {
+  return Boolean(
+    ctx.chat?.id &&
+      ctx.session.activeBotId &&
+      logWatchers.has(getWatchKey(ctx.chat.id, ctx.session.activeBotId)),
+  );
+}
+
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
@@ -71,11 +81,50 @@ function isTokenInvalid(status?: string | null) {
   return status === 'token_invalid';
 }
 
-function formatTokenInvalidMessage(name?: string, username?: string | null) {
-  const label = username
-    ? `@${username.trim().replace(/^@/, '')}`
-    : name || 'This bot';
-  return `🔑 *${label}* has an invalid token\n\nIt may have been deleted from @BotFather.`;
+function formatBotState(status?: BotStatus | null) {
+  if (!status) return 'Unknown';
+  if (isTokenInvalid(status.status)) return 'Token invalid';
+  if (status.runtime?.overall === 'running' || status.isActive) return 'Running';
+  if (status.runtime?.overall === 'launching') return 'Starting';
+  if (status.runtime?.overall === 'errored') return 'Errored';
+  return 'Stopped';
+}
+
+function formatCurrentVersion(status?: BotStatus | null) {
+  return status?.latestVersion ? `v${status.latestVersion.versionNum}` : 'None';
+}
+
+function formatManagementMessage(
+  name: string,
+  username?: string | null,
+  status?: BotStatus | null,
+  prefix?: string,
+) {
+  const header =
+    prefix ??
+    `Now managing *${name}* (${formatBotUsername(username)}).`;
+  return [
+    header,
+    '',
+    `*Bot state:* ${formatBotState(status)}`,
+    `*Current version:* ${formatCurrentVersion(status)}`,
+  ].join('\n');
+}
+
+async function renderActiveBotManagement(ctx: MyContext, prefix?: string) {
+  const status = await getActiveBotStatus(ctx).catch(() => null);
+  const name = status?.name ?? ctx.session.activeBotName ?? 'this bot';
+  return {
+    text: formatManagementMessage(
+      name,
+      ctx.session.activeBotUsername,
+      status,
+      prefix,
+    ),
+    keyboard: isTokenInvalid(status?.status)
+      ? createTokenInvalidKeyboard()
+      : createManagementKeyboard(),
+  };
 }
 
 async function getActiveBotStatus(ctx: MyContext) {
@@ -89,7 +138,8 @@ async function createActiveBotSettingsKeyboard(ctx: MyContext) {
   const status = await getActiveBotStatus(ctx);
   return createSettingsKeyboard(
     Boolean(status?.isActive),
-    isTokenInvalid(status?.status)
+    isTokenInvalid(status?.status),
+    isLiveLogsActive(ctx),
   );
 }
 
@@ -167,27 +217,13 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
       }
       ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
-      if (isTokenInvalid(selectedBot.status)) {
-        await editMessageOrReply(
-          ctx,
-          formatTokenInvalidMessage(
-            selectedBot.name,
-            selectedBot.telegramUsername
-          ),
-          {
-            parse_mode: 'Markdown',
-            reply_markup: createTokenInvalidKeyboard(),
-          }
-        );
-        return;
-      }
-
+      const overview = await renderActiveBotManagement(ctx);
       await editMessageOrReply(
         ctx,
-        `Now managing *${selectedBot.name}* (${formatBotUsername(selectedBot.telegramUsername)}).`,
+        overview.text,
         {
           parse_mode: 'Markdown',
-          reply_markup: createManagementKeyboard(),
+          reply_markup: overview.keyboard,
         }
       );
     } else {
@@ -274,6 +310,15 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
   await ctx.replyWithChatAction('typing');
 
   try {
+    if (action === 'status') {
+      const overview = await renderActiveBotManagement(ctx);
+      await editMessageOrReply(ctx, overview.text, {
+        parse_mode: 'Markdown',
+        reply_markup: overview.keyboard,
+      });
+      return;
+    }
+
     const result =
       action === 'logs'
         ? {
@@ -287,13 +332,7 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
               content: 'Here are the latest statistics.',
               data: await fetchBotStats(telegramId, activeBotId),
             }
-          : action === 'status'
-            ? {
-                type: 'get_status',
-                content: '',
-                data: await fetchBotStatus(telegramId, activeBotId),
-              }
-            : {
+          : {
                 type: 'get_versions',
                 content: 'Here is the version history of your bot.',
                 data: await fetchBotVersions(telegramId, activeBotId),
@@ -305,18 +344,18 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       result.data
     );
 
-    if (
-      action === 'status' &&
-      result.data &&
-      isTokenInvalid((result.data as any).status)
-    ) {
-      await editMessageOrReply(ctx, finalContent, {
-        parse_mode: 'Markdown',
-        reply_markup: createTokenInvalidKeyboard(),
-      });
-    } else {
+    if (finalContent.length > 4000) {
       await sendFormattedReply(ctx, finalContent);
+      await ctx.reply('Navigation:', {
+        reply_markup: createBackToManagementKeyboard(),
+      });
+      return;
     }
+
+    await editMessageOrReply(ctx, finalContent || 'No data yet.', {
+      parse_mode: 'Markdown',
+      reply_markup: createBackToManagementKeyboard(),
+    });
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
     await ctx.reply('I could not load that bot detail right now.');
@@ -338,10 +377,6 @@ callbacks.callbackQuery('bot_logs_watch', async (ctx) => {
   try {
     const initialLogs = await fetchBotLogs(telegramId, activeBotId);
     const seen = new Set<string>(initialLogs.lines || []);
-    await ctx.reply(
-      `🔴 Watching live logs for *${initialLogs.environment || 'active'}*.\nUse Settings → Stop Live Logs to stop.`,
-      { parse_mode: 'Markdown' }
-    );
 
     const watcher = setInterval(async () => {
       try {
@@ -372,6 +407,15 @@ callbacks.callbackQuery('bot_logs_watch', async (ctx) => {
     }, 5000);
 
     logWatchers.set(getWatchKey(chatId, activeBotId), watcher);
+    const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
+    await editMessageOrReply(
+      ctx,
+      `Bot settings:\n\n*Live logs:* On`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup,
+      },
+    );
   } catch (error) {
     console.error('Live logs start failed:', error);
     await ctx.reply('I could not start live logs right now.');
@@ -386,9 +430,14 @@ callbacks.callbackQuery('bot_logs_stop', async (ctx) => {
   const stopped = stopLogWatcher(ctx.chat.id, ctx.session.activeBotId);
   await ctx.answerCallbackQuery(stopped ? 'Live logs stopped.' : 'No live log watcher.');
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-  await editMessageOrReply(ctx, stopped ? 'Stopped live logs.' : 'Live logs are not running.', {
-    reply_markup: replyMarkup,
-  });
+  await editMessageOrReply(
+    ctx,
+    `Bot settings:\n\n*Live logs:* Off`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: replyMarkup,
+    },
+  );
 });
 
 callbacks.callbackQuery('bot_settings', async (ctx) => {
@@ -396,9 +445,14 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-  await editMessageOrReply(ctx, 'Bot settings:', {
-    reply_markup: replyMarkup,
-  });
+  await editMessageOrReply(
+    ctx,
+    `Bot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: replyMarkup,
+    },
+  );
 });
 
 callbacks.callbackQuery('bot_update_token', async (ctx) => {
@@ -440,12 +494,13 @@ callbacks.callbackQuery('bot_settings_back', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
   await ctx.answerCallbackQuery();
+  const overview = await renderActiveBotManagement(ctx);
   await editMessageOrReply(
     ctx,
-    `Now managing *${ctx.session.activeBotName || 'this bot'}* (${formatBotUsername(ctx.session.activeBotUsername)}).`,
+    overview.text,
     {
       parse_mode: 'Markdown',
-      reply_markup: createManagementKeyboard(),
+      reply_markup: overview.keyboard,
     }
   );
 });
@@ -481,14 +536,24 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
     }
 
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-    await editMessageOrReply(ctx, result?.message || `Bot ${action} completed.`, {
-      reply_markup: replyMarkup,
-    });
+    await editMessageOrReply(
+      ctx,
+      `${result?.message || `Bot ${action} completed.`}\n\nBot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup,
+      },
+    );
   } catch (error) {
     console.error(`Bot ${action} failed:`, error);
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
-    await editMessageOrReply(ctx, `I could not ${action} the bot right now.`, {
-      reply_markup: replyMarkup,
-    });
+    await editMessageOrReply(
+      ctx,
+      `I could not ${action} the bot right now.\n\nBot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup,
+      },
+    );
   }
 });
