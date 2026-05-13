@@ -7,18 +7,22 @@ export function formatDataPayload(type: string, content: string | undefined, pay
     case 'get_logs':
       if (payload.lines && Array.isArray(payload.lines)) {
         const logs = payload.lines.join('\n');
+        formatted += `*Environment:* ${payload.environment || 'auto'}\n\n`;
         formatted += `\`\`\`\n${logs}\n\`\`\``;
       }
       break;
     case 'get_stats':
-      formatted += `📈 *Statistics (${payload.isActive ? 'Active' : 'Inactive'})*\n`;
-      formatted += `Messages: ${payload.messageCount}\n`;
-      formatted += `Errors: ${payload.errorCount}\n`;
-      formatted += `Error Rate: ${payload.errorRate}\n`;
-      formatted += `Avg Response Time: ${payload.responseTime}`;
+      formatted += `📊 *Statistics*\n`;
+      formatted += `*Environment:* ${payload.environment || 'auto'}\n`;
+      formatted += `*Status:* ${payload.isActive ? 'Active' : 'Inactive'}\n\n`;
+      formatted += `Messages: *${payload.messageCount}*\n`;
+      formatted += `Errors: *${payload.errorCount}*\n`;
+      formatted += `Error Rate: *${payload.errorRate}*\n`;
+      formatted += `Avg Response Time: *${payload.responseTime}*`;
       break;
     case 'get_versions':
       if (Array.isArray(payload)) {
+        formatted += `🧾 *Version History*\n\n`;
         payload.forEach((v: any) => {
           formatted += `*v${v.versionNum}* ${v.isProd ? '🟢(Prod)' : ''}${v.isTest ? '🟡(Test)' : ''}\n`;
           formatted += `Prompt: _${v.prompt}_\n`;
@@ -27,13 +31,13 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       }
       break;
     case 'get_status':
-      formatted += `*Status for ${payload.name}*\n`;
-      formatted += `Overall: ${payload.isActive ? 'Active' : 'Inactive'}\n`;
-      formatted += `Test: ${payload.testActive ? 'Active' : 'Inactive'}\n`;
-      formatted += `Production: ${payload.prodActive ? 'Active' : 'Inactive'}\n`;
+      formatted += `🟢 *${payload.name} Status*\n\n`;
+      formatted += `*Overall:* ${payload.isActive ? 'Active' : 'Inactive'}\n`;
+      formatted += `*Test:* ${payload.testActive ? 'Active' : 'Inactive'}\n`;
+      formatted += `*Production:* ${payload.prodActive ? 'Active' : 'Inactive'}\n`;
       if (payload.latestVersion) {
-        formatted += `Latest Version: v${payload.latestVersion.versionNum}\n`;
-        formatted += `Prompt: _${payload.latestVersion.prompt}_`;
+        formatted += `\n*Latest Version:* v${payload.latestVersion.versionNum}\n`;
+        formatted += `*Prompt:* _${payload.latestVersion.prompt}_`;
       }
       break;
     case 'improve_bot':

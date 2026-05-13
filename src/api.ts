@@ -183,3 +183,14 @@ export async function resumeBot(telegramId: string, botId: string) {
     throw toBackendApiError(error, 'Failed to resume bot.');
   }
 }
+
+export async function deleteBot(telegramId: string, botId: string) {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/delete`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to delete bot.');
+  }
+}

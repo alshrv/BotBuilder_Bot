@@ -2,6 +2,7 @@ import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
 import {
   chatWithUserBot,
+  deleteBot,
   fetchBotLogs,
   fetchBotStats,
   fetchBotStatus,
@@ -12,12 +13,39 @@ import {
   stopBot,
 } from './api.js';
 import {
+  createDeleteConfirmKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const callbacks = new Composer<MyContext>();
+const logWatchers = new Map<string, ReturnType<typeof setInterval>>();
+
+function getWatchKey(chatId: number | string, botId: string) {
+  return `${chatId}:${botId}`;
+}
+
+function stopLogWatcher(chatId: number | string, botId: string) {
+  const key = getWatchKey(chatId, botId);
+  const watcher = logWatchers.get(key);
+  if (!watcher) return false;
+
+  clearInterval(watcher);
+  logWatchers.delete(key);
+  return true;
+}
+
+async function sendFormattedReply(ctx: MyContext, text: string) {
+  if (text.length > 4000) {
+    for (let i = 0; i < text.length; i += 4000) {
+      await ctx.reply(text.substring(i, i + 4000), { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
+  await ctx.reply(text || 'No data yet.', { parse_mode: 'Markdown' });
+}
 
 callbacks.callbackQuery('new_bot', async (ctx) => {
   await ctx.answerCallbackQuery();
@@ -166,13 +194,13 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       action === 'logs'
         ? {
             type: 'get_logs',
-            content: 'Here are the latest production logs.',
+            content: 'Here are the latest logs.',
             data: await fetchBotLogs(telegramId, activeBotId),
           }
         : action === 'stats'
           ? {
               type: 'get_stats',
-              content: 'Here are the latest production statistics.',
+              content: 'Here are the latest statistics.',
               data: await fetchBotStats(telegramId, activeBotId),
             }
           : action === 'status'
@@ -193,20 +221,78 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       result.data
     );
 
-    if (finalContent.length > 4000) {
-      for (let i = 0; i < finalContent.length; i += 4000) {
-        await ctx.reply(finalContent.substring(i, i + 4000), {
-          parse_mode: 'Markdown',
-        });
-      }
-      return;
-    }
-
-    await ctx.reply(finalContent || 'No data yet.', { parse_mode: 'Markdown' });
+    await sendFormattedReply(ctx, finalContent);
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
     await ctx.reply('I could not load that bot detail right now.');
   }
+});
+
+callbacks.callbackQuery('bot_logs_watch', async (ctx) => {
+  if (!ctx.session.activeBotId || !ctx.chat?.id) {
+    return ctx.answerCallbackQuery('No active bot.');
+  }
+
+  const activeBotId = ctx.session.activeBotId;
+  const telegramId = String(ctx.from?.id);
+  const chatId = ctx.chat.id;
+  stopLogWatcher(chatId, activeBotId);
+
+  await ctx.answerCallbackQuery();
+
+  try {
+    const initialLogs = await fetchBotLogs(telegramId, activeBotId);
+    const seen = new Set<string>(initialLogs.lines || []);
+    await ctx.reply(
+      `🔴 Watching live logs for *${initialLogs.environment || 'active'}*.\nUse Settings → Stop Live Logs to stop.`,
+      { parse_mode: 'Markdown' }
+    );
+
+    const watcher = setInterval(async () => {
+      try {
+        const latestLogs = await fetchBotLogs(telegramId, activeBotId);
+        const newLines = (latestLogs.lines || []).filter((line: string) => {
+          if (seen.has(line)) return false;
+          seen.add(line);
+          return true;
+        });
+
+        if (newLines.length === 0) return;
+
+        const formatted = formatDataPayload(
+          'get_logs',
+          'New log entries:',
+          {
+            ...latestLogs,
+            lines: newLines.slice(-20),
+          }
+        );
+
+        await ctx.api.sendMessage(chatId, formatted, {
+          parse_mode: 'Markdown',
+        });
+      } catch (error) {
+        console.error('Live logs watcher failed:', error);
+      }
+    }, 5000);
+
+    logWatchers.set(getWatchKey(chatId, activeBotId), watcher);
+  } catch (error) {
+    console.error('Live logs start failed:', error);
+    await ctx.reply('I could not start live logs right now.');
+  }
+});
+
+callbacks.callbackQuery('bot_logs_stop', async (ctx) => {
+  if (!ctx.session.activeBotId || !ctx.chat?.id) {
+    return ctx.answerCallbackQuery('No active bot.');
+  }
+
+  const stopped = stopLogWatcher(ctx.chat.id, ctx.session.activeBotId);
+  await ctx.answerCallbackQuery(stopped ? 'Live logs stopped.' : 'No live log watcher.');
+  await ctx.reply(stopped ? 'Stopped live logs.' : 'Live logs are not running.', {
+    reply_markup: createSettingsKeyboard(),
+  });
 });
 
 callbacks.callbackQuery('bot_settings', async (ctx) => {
@@ -216,6 +302,19 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
   await ctx.reply('Bot settings:', {
     reply_markup: createSettingsKeyboard(),
   });
+});
+
+callbacks.callbackQuery('bot_delete_confirm', async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(
+    `Delete *${ctx.session.activeBotName || 'this bot'}*?\n\nThis stops the bot and removes its versions and logs.`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: createDeleteConfirmKeyboard(),
+    }
+  );
 });
 
 callbacks.callbackQuery('bot_settings_back', async (ctx) => {
@@ -231,7 +330,7 @@ callbacks.callbackQuery('bot_settings_back', async (ctx) => {
   );
 });
 
-callbacks.callbackQuery(/^bot_control:(stop|restart|resume)$/, async (ctx) => {
+callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
   const action = ctx.match[1];
@@ -247,7 +346,18 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume)$/, async (ctx) => {
         ? await stopBot(telegramId, activeBotId)
         : action === 'restart'
           ? await restartBot(telegramId, activeBotId)
-          : await resumeBot(telegramId, activeBotId);
+          : action === 'resume'
+            ? await resumeBot(telegramId, activeBotId)
+            : await deleteBot(telegramId, activeBotId);
+
+    if (action === 'delete') {
+      if (ctx.chat?.id) stopLogWatcher(ctx.chat.id, activeBotId);
+      delete ctx.session.activeBotId;
+      delete ctx.session.activeBotName;
+      ctx.session.chatHistory = [];
+      await ctx.reply(result?.message || 'Bot deleted.');
+      return;
+    }
 
     await ctx.reply(result?.message || `Bot ${action} completed.`, {
       reply_markup: createManagementKeyboard(),
