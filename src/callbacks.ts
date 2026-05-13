@@ -7,8 +7,14 @@ import {
   fetchBotStatus,
   fetchBotVersions,
   fetchUserBots,
+  restartBot,
+  resumeBot,
+  stopBot,
 } from './api.js';
-import { createManagementKeyboard } from './keyboards.js';
+import {
+  createManagementKeyboard,
+  createSettingsKeyboard,
+} from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const callbacks = new Composer<MyContext>();
@@ -200,5 +206,56 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
     await ctx.reply('I could not load that bot detail right now.');
+  }
+});
+
+callbacks.callbackQuery('bot_settings', async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  await ctx.answerCallbackQuery();
+  await ctx.reply('Bot settings:', {
+    reply_markup: createSettingsKeyboard(),
+  });
+});
+
+callbacks.callbackQuery('bot_settings_back', async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(
+    `Now managing *${ctx.session.activeBotName || 'this bot'}*.`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: createManagementKeyboard(),
+    }
+  );
+});
+
+callbacks.callbackQuery(/^bot_control:(stop|restart|resume)$/, async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  const action = ctx.match[1];
+  const activeBotId = ctx.session.activeBotId;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(`Processing ${action}...`);
+
+  try {
+    const result =
+      action === 'stop'
+        ? await stopBot(telegramId, activeBotId)
+        : action === 'restart'
+          ? await restartBot(telegramId, activeBotId)
+          : await resumeBot(telegramId, activeBotId);
+
+    await ctx.reply(result?.message || `Bot ${action} completed.`, {
+      reply_markup: createManagementKeyboard(),
+    });
+  } catch (error) {
+    console.error(`Bot ${action} failed:`, error);
+    await ctx.reply(`I could not ${action} the bot right now.`, {
+      reply_markup: createSettingsKeyboard(),
+    });
   }
 });

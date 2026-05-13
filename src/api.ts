@@ -150,3 +150,36 @@ export async function fetchBotVersions(telegramId: string, botId: string) {
     throw toBackendApiError(error, 'Failed to fetch bot versions.');
   }
 }
+
+export async function stopBot(telegramId: string, botId: string) {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/stop`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to stop bot.');
+  }
+}
+
+export async function restartBot(telegramId: string, botId: string) {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/restart`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to restart bot.');
+  }
+}
+
+export async function resumeBot(telegramId: string, botId: string) {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/resume`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to resume bot.');
+  }
+}
