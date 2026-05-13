@@ -26,6 +26,16 @@ export function formatDataPayload(type: string, content: string | undefined, pay
         });
       }
       break;
+    case 'get_status':
+      formatted += `*Status for ${payload.name}*\n`;
+      formatted += `Overall: ${payload.isActive ? 'Active' : 'Inactive'}\n`;
+      formatted += `Test: ${payload.testActive ? 'Active' : 'Inactive'}\n`;
+      formatted += `Production: ${payload.prodActive ? 'Active' : 'Inactive'}\n`;
+      if (payload.latestVersion) {
+        formatted += `Latest Version: v${payload.latestVersion.versionNum}\n`;
+        formatted += `Prompt: _${payload.latestVersion.prompt}_`;
+      }
+      break;
     case 'improve_bot':
       if (payload.version) {
         formatted += `*New Version (v${payload.version.versionNum}) Created!*\n`;

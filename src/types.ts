@@ -16,6 +16,8 @@ export interface BackendBot {
   updatedAt?: string;
 }
 
+export type BotEnvironment = 'test' | 'prod';
+
 export interface CreateBotResult {
   success: boolean;
   message: string;
@@ -33,6 +35,25 @@ export interface BackendChatResponse {
   content?: string;
   data?: unknown;
   action?: BackendAction;
+}
+
+export interface BotStatus {
+  id: string;
+  name: string;
+  runtimeBotId: string;
+  isActive: boolean;
+  testActive: boolean;
+  prodActive: boolean;
+  hasTestToken: boolean;
+  hasProdToken: boolean;
+  latestVersion: {
+    id: string;
+    versionNum: number;
+    prompt: string;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SessionData {

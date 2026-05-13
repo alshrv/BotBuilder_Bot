@@ -4,6 +4,8 @@ import type {
   BackendAction,
   BackendBot,
   BackendChatResponse,
+  BotEnvironment,
+  BotStatus,
   ChatHistoryItem,
   CreateBotResult,
 } from './types.js';
@@ -89,5 +91,62 @@ export async function chatWithUserBot(
     return response.data;
   } catch (error: unknown) {
     throw toBackendApiError(error, 'Failed to chat with bot.');
+  }
+}
+
+export async function fetchBotLogs(
+  telegramId: string,
+  botId: string,
+  environment: BotEnvironment = 'prod'
+) {
+  try {
+    const response = await api.get(
+      `/internal/bots/user/${telegramId}/${botId}/logs`,
+      { params: { environment } }
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to fetch bot logs.');
+  }
+}
+
+export async function fetchBotStats(
+  telegramId: string,
+  botId: string,
+  environment: BotEnvironment = 'prod'
+) {
+  try {
+    const response = await api.get(
+      `/internal/bots/user/${telegramId}/${botId}/stats`,
+      { params: { environment } }
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to fetch bot stats.');
+  }
+}
+
+export async function fetchBotStatus(
+  telegramId: string,
+  botId: string
+): Promise<BotStatus> {
+  try {
+    const response = await api.get(
+      `/internal/bots/user/${telegramId}/${botId}/status`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to fetch bot status.');
+  }
+}
+
+export async function fetchBotVersions(telegramId: string, botId: string) {
+  try {
+    const response = await api.get(
+      `/internal/bots/user/${telegramId}/${botId}/versions`
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to fetch bot versions.');
   }
 }

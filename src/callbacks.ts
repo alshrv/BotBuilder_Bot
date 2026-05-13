@@ -1,6 +1,14 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
-import { chatWithUserBot, fetchUserBots } from './api.js';
+import {
+  chatWithUserBot,
+  fetchBotLogs,
+  fetchBotStats,
+  fetchBotStatus,
+  fetchBotVersions,
+  fetchUserBots,
+} from './api.js';
+import { createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const callbacks = new Composer<MyContext>();
@@ -58,8 +66,11 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
       ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
       await ctx.reply(
-        `Now managing *${selectedBot.name}*.\n\nYou can ask me to:\n- "Show logs"\n- "Get stats"\n- "Deploy to prod"\n- "Improve the bot by adding a /help command"`,
-        { parse_mode: 'Markdown' }
+        `Now managing *${selectedBot.name}*.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createManagementKeyboard(),
+        }
       );
     } else {
       await ctx.answerCallbackQuery('Bot not found.');
@@ -117,12 +128,12 @@ callbacks.callbackQuery('get_stats_quick', async (ctx) => {
 
   const telegramId = String(ctx.from?.id);
   try {
-    const data = await chatWithUserBot(telegramId, activeBotId, {
-      message: 'get stats',
-      history: ctx.session.chatHistory,
-    });
-
-    const finalContent = formatDataPayload(data.type, data.content, data.data);
+    const data = await fetchBotStats(telegramId, activeBotId);
+    const finalContent = formatDataPayload(
+      'get_stats',
+      'Here are the latest statistics for your bot.',
+      data
+    );
     if (finalContent) {
       await ctx.reply(finalContent, { parse_mode: 'Markdown' });
     } else {
@@ -131,5 +142,63 @@ callbacks.callbackQuery('get_stats_quick', async (ctx) => {
   } catch (error) {
     console.error('Stats error:', error);
     await ctx.reply('Error fetching stats.');
+  }
+});
+
+callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  const action = ctx.match[1];
+  const activeBotId = ctx.session.activeBotId;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+  await ctx.replyWithChatAction('typing');
+
+  try {
+    const result =
+      action === 'logs'
+        ? {
+            type: 'get_logs',
+            content: 'Here are the latest production logs.',
+            data: await fetchBotLogs(telegramId, activeBotId),
+          }
+        : action === 'stats'
+          ? {
+              type: 'get_stats',
+              content: 'Here are the latest production statistics.',
+              data: await fetchBotStats(telegramId, activeBotId),
+            }
+          : action === 'status'
+            ? {
+                type: 'get_status',
+                content: '',
+                data: await fetchBotStatus(telegramId, activeBotId),
+              }
+            : {
+                type: 'get_versions',
+                content: 'Here is the version history of your bot.',
+                data: await fetchBotVersions(telegramId, activeBotId),
+              };
+
+    const finalContent = formatDataPayload(
+      result.type,
+      result.content,
+      result.data
+    );
+
+    if (finalContent.length > 4000) {
+      for (let i = 0; i < finalContent.length; i += 4000) {
+        await ctx.reply(finalContent.substring(i, i + 4000), {
+          parse_mode: 'Markdown',
+        });
+      }
+      return;
+    }
+
+    await ctx.reply(finalContent || 'No data yet.', { parse_mode: 'Markdown' });
+  } catch (error) {
+    console.error(`Bot action ${action} failed:`, error);
+    await ctx.reply('I could not load that bot detail right now.');
   }
 });

@@ -1,6 +1,7 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { MyContext } from './types.js';
 import { chatWithUserBot, createUserBot } from './api.js';
+import { createManagementKeyboard } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const messages = new Composer<MyContext>();
@@ -63,10 +64,7 @@ messages.on('message:text', async (ctx) => {
           `✅ Bot *${botName}* created successfully! You can now manage it here.`,
           {
             parse_mode: 'Markdown',
-            reply_markup: new InlineKeyboard().text(
-              '📊 View Stats',
-              'get_stats_quick'
-            ),
+            reply_markup: createManagementKeyboard(),
           }
         );
       } catch (error: unknown) {
