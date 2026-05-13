@@ -44,6 +44,22 @@ async function removeReplyKeyboard(ctx: MyContext) {
   }
 }
 
+async function cancelFlow(ctx: MyContext) {
+  clearFlowSession(ctx);
+
+  if (ctx.chat?.id && ctx.session.flowMessageId) {
+    await ctx.api
+      .deleteMessage(ctx.chat.id, ctx.session.flowMessageId)
+      .catch(() => undefined);
+  }
+
+  await ctx.deleteMessage().catch(() => undefined);
+  await ctx.reply('Operation cancelled.', {
+    reply_markup: { remove_keyboard: true },
+  });
+  delete ctx.session.flowMessageId;
+}
+
 // Managed Bot Created handler
 messages.on('message:managed_bot_created', async (ctx) => {
   const managedBot = ctx.message.managed_bot_created.bot;
@@ -131,16 +147,10 @@ messages.on('message:text', async (ctx) => {
   const text = ctx.message.text;
 
   if (
-    (text === 'Cancel' || text === '❌ Cancel') &&
-    (ctx.session.step === 'awaiting_managed_bot' ||
-      ctx.session.step === 'awaiting_update_managed_bot' ||
-      ctx.session.step === 'awaiting_bot_prompt')
+    text === 'Cancel' ||
+    text === '❌ Cancel'
   ) {
-    clearFlowSession(ctx);
-    await removeReplyKeyboard(ctx);
-    await ctx.deleteMessage().catch(() => undefined);
-    await editFlowMessageOrReply(ctx, 'Operation cancelled.');
-    delete ctx.session.flowMessageId;
+    await cancelFlow(ctx);
     return;
   }
 

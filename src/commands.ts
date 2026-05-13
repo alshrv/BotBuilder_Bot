@@ -78,8 +78,17 @@ commands.command(['list', 'select'], async (ctx) => {
 });
 
 commands.command('cancel', async (ctx) => {
+  if (ctx.chat?.id && ctx.session.flowMessageId) {
+    await ctx.api
+      .deleteMessage(ctx.chat.id, ctx.session.flowMessageId)
+      .catch(() => undefined);
+  }
+
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
   ctx.session.pendingAction = undefined;
-  await ctx.reply('Operation cancelled.');
+  delete ctx.session.flowMessageId;
+  await ctx.reply('Operation cancelled.', {
+    reply_markup: { remove_keyboard: true },
+  });
 });
