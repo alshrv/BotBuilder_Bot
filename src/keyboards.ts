@@ -7,7 +7,7 @@ export function createManagementKeyboard() {
     .text('📜 Show Logs', 'bot_action:logs')
     .text('📊 Get Stats', 'bot_action:stats')
     .row()
-    .text('🧾 Show Versions', 'bot_action:versions')
+    .text('🔁 Change Version', 'bot_action:versions')
     .text('⚙️ Settings', 'bot_settings');
 }
 

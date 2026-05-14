@@ -2,6 +2,7 @@ import axios from 'axios';
 import { BACKEND_URL, INTERNAL_BOT_SECRET } from './config.js';
 import type {
   BackendBot,
+  BotVersion,
   BotStatus,
   CreateBotResult,
   ImproveBotResult,
@@ -119,7 +120,10 @@ export async function fetchBotStatus(
   }
 }
 
-export async function fetchBotVersions(telegramId: string, botId: string) {
+export async function fetchBotVersions(
+  telegramId: string,
+  botId: string,
+): Promise<BotVersion[]> {
   try {
     const response = await api.get(
       `/internal/bots/user/${telegramId}/${botId}/versions`
@@ -127,6 +131,21 @@ export async function fetchBotVersions(telegramId: string, botId: string) {
     return response.data;
   } catch (error: unknown) {
     throw toBackendApiError(error, 'Failed to fetch bot versions.');
+  }
+}
+
+export async function deployBotVersion(
+  telegramId: string,
+  botId: string,
+  versionId: string,
+) {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/versions/${versionId}/deploy`,
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to change bot version.');
   }
 }
 

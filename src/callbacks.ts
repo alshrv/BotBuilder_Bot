@@ -2,6 +2,7 @@ import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
 import {
   deleteBot,
+  deployBotVersion,
   fetchBotLogs,
   fetchBotStats,
   fetchBotStatus,
@@ -26,7 +27,7 @@ import {
   formatBotListItem,
   formatBotUsername,
 } from './bot-display.js';
-import type { BotStatus } from './types.js';
+import type { BotStatus, BotVersion } from './types.js';
 
 export const callbacks = new Composer<MyContext>();
 const logWatchers = new Map<string, ReturnType<typeof setInterval>>();
@@ -153,6 +154,41 @@ async function createActiveBotSettingsKeyboard(ctx: MyContext) {
     isTokenInvalid(status?.status),
     isLiveLogsActive(ctx),
   );
+}
+
+function truncateLabel(text: string, maxLength = 34) {
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function createVersionPickerKeyboard(versions: BotVersion[]) {
+  const keyboard = new InlineKeyboard();
+
+  versions.forEach((version) => {
+    const currentMarker = version.isActive ? ' 🟢' : '';
+    keyboard
+      .text(
+        `v${version.versionNum}${currentMarker} ${truncateLabel(version.prompt)}`,
+        `bot_version:${version.id}`,
+      )
+      .row();
+  });
+
+  return keyboard.text('⬅️ Back', 'bot_settings_back');
+}
+
+function formatVersionPickerMessage(versions: BotVersion[]) {
+  if (versions.length === 0) {
+    return 'No versions yet.';
+  }
+
+  const versionLines = versions
+    .map((version) => {
+      const marker = version.isActive ? ' 🟢 Current' : '';
+      return `*v${version.versionNum}*${marker}\n_${version.prompt}_`;
+    })
+    .join('\n\n');
+
+  return `*Change Version*\n\n${versionLines}\n\nSelect a version to run:`;
 }
 
 callbacks.callbackQuery('new_bot', async (ctx) => {
@@ -308,6 +344,15 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
       return;
     }
 
+    if (action === 'versions') {
+      const versions = await fetchBotVersions(telegramId, activeBotId);
+      await editMessageOrReply(ctx, formatVersionPickerMessage(versions), {
+        parse_mode: 'Markdown',
+        reply_markup: createVersionPickerKeyboard(versions),
+      });
+      return;
+    }
+
     const result =
       action === 'logs'
         ? {
@@ -315,17 +360,11 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
             content: 'Here are the latest logs.',
             data: await fetchBotLogs(telegramId, activeBotId),
           }
-        : action === 'stats'
-          ? {
-              type: 'get_stats',
-              content: 'Here are the latest statistics.',
-              data: await fetchBotStats(telegramId, activeBotId),
-            }
-          : {
-                type: 'get_versions',
-                content: 'Here is the version history of your bot.',
-                data: await fetchBotVersions(telegramId, activeBotId),
-              };
+        : {
+            type: 'get_stats',
+            content: 'Here are the latest statistics.',
+            data: await fetchBotStats(telegramId, activeBotId),
+          };
 
     const finalContent = formatDataPayload(
       result.type,
@@ -348,6 +387,34 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
     await ctx.reply('I could not load that bot detail right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
+  }
+});
+
+callbacks.callbackQuery(/^bot_version:(.+)$/, async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  const versionId = ctx.match[1]!;
+  const activeBotId = ctx.session.activeBotId;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+  await editMessageOrReply(ctx, 'Changing version... ⏳');
+
+  try {
+    const result = await deployBotVersion(telegramId, activeBotId, versionId);
+    const overview = await renderActiveBotManagement(
+      ctx,
+      result?.message || 'Version changed.',
+    );
+    await editMessageOrReply(ctx, overview.text, {
+      parse_mode: 'Markdown',
+      reply_markup: overview.keyboard,
+    });
+  } catch (error) {
+    console.error('Version change failed:', error);
+    await editMessageOrReply(ctx, 'I could not change the version right now.', {
       reply_markup: createBackToManagementKeyboard(),
     });
   }

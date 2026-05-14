@@ -36,6 +36,14 @@ export interface ImproveBotResult {
   };
 }
 
+export interface BotVersion {
+  id: string;
+  versionNum: number;
+  prompt: string;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
 export interface BotStatus {
   id: string;
   name: string;
