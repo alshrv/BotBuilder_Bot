@@ -1,8 +1,12 @@
 import { Composer } from 'grammy';
-import type { BotStatus, MyContext } from './types.js';
-import { createUserBot, fetchBotStatus, improveBot, updateBotToken } from './api.js';
+import type { BotStatus, GenerateMeta, MyContext } from './types.js';
+import { fetchBotStatus, improveBot, updateBotToken } from './api.js';
 import { formatBotUsername } from './bot-display.js';
-import { createFlowCancelKeyboard, createManagementKeyboard } from './keyboards.js';
+import {
+  createFlowCancelKeyboard,
+  createGenerateOptionsKeyboard,
+  createManagementKeyboard,
+} from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
 export const messages = new Composer<MyContext>();
@@ -73,6 +77,24 @@ async function removeReplyKeyboard(ctx: MyContext) {
   } catch {
     // Best-effort cleanup only.
   }
+}
+
+function defaultGenerateMeta(): GenerateMeta {
+  return {
+    description: true,
+    about: true,
+    commands: true,
+  };
+}
+
+function formatGenerateOptionsMessage(description: string) {
+  return [
+    '✏️ *Describe your bot*',
+    '',
+    description,
+    '',
+    '⚙️ *Also generate with AI:*',
+  ].join('\n');
 }
 
 async function cancelFlow(ctx: MyContext) {
@@ -161,6 +183,7 @@ messages.on('message:managed_bot_created', async (ctx) => {
       name: botName,
       token,
       prompt: '',
+      generateMeta: defaultGenerateMeta(),
     };
     if (botUsername) {
       ctx.session.pendingBot.username = botUsername;
@@ -169,7 +192,7 @@ messages.on('message:managed_bot_created', async (ctx) => {
     
     await editFlowMessageOrReply(
       ctx,
-      `🎉 Great! You've successfully created *${botName}*.\n\nNow, tell me what this bot should do. For example:\n_"A bot that sends a random joke every morning"_`,
+      `🎉 Great! You've successfully created *${botName}*.\n\n✏️ *Describe your bot*\n\nFor example:\n_"A bot that sends a random joke every morning"_`,
       {
         parse_mode: 'Markdown',
         reply_markup: createFlowCancelKeyboard(),
@@ -251,60 +274,21 @@ messages.on('message:text', async (ctx) => {
   if (ctx.session.step === 'awaiting_bot_prompt') {
     if (ctx.session.pendingBot) {
       ctx.session.pendingBot.prompt = text;
-      const botName = ctx.session.pendingBot.name;
-      ctx.session.step = undefined;
-      
-      const progress = await ctx.reply(`Creating *${botName}*... this might take a minute ⏳`, { parse_mode: 'Markdown' });
-      await ctx.replyWithChatAction('typing');
+      ctx.session.pendingBot.generateMeta ??= defaultGenerateMeta();
+      ctx.session.step = 'awaiting_bot_generate_options';
 
-      try {
-        const createInput: {
-          name: string;
-          prompt: string;
-          token: string;
-          telegramUsername?: string;
-        } = {
-          name: botName,
-          prompt: text,
-          token: ctx.session.pendingBot.token,
-        };
-        if (ctx.session.pendingBot.username) {
-          createInput.telegramUsername = ctx.session.pendingBot.username;
-        }
-
-        const result = await createUserBot(telegramId, createInput);
-        
-        ctx.session.activeBotId = result.botId;
-        ctx.session.activeBotName = botName;
-        if (ctx.session.pendingBot.username) {
-          ctx.session.activeBotUsername = ctx.session.pendingBot.username;
-        }
-        ctx.session.pendingBot = undefined;
-        
-        await ctx.api.editMessageText(
-          ctx.chat.id,
-          progress.message_id,
-          await formatManagementMessage(
-            ctx,
-            `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
-          ),
-          {
-            parse_mode: 'Markdown',
-            reply_markup: createManagementKeyboard(),
-          }
-        );
-      } catch (error: unknown) {
-        console.error('Create error:', error);
-        const msg =
-          error instanceof Error ? error.message : 'Failed to create bot.';
-        await ctx.api.editMessageText(
-          ctx.chat.id,
-          progress.message_id,
-          `❌ ${msg}\n\nPlease try again or contact support if the issue persists.`
-        );
-      }
+      await editFlowMessageOrReply(ctx, formatGenerateOptionsMessage(text), {
+        parse_mode: 'Markdown',
+        reply_markup: createGenerateOptionsKeyboard(
+          ctx.session.pendingBot.generateMeta,
+        ),
+      });
     }
     return;
+  }
+
+  if (ctx.session.step === 'awaiting_bot_generate_options') {
+    return ctx.reply('Use the buttons above to choose AI fields, or type /cancel to abort.');
   }
 
   if (!ctx.session.activeBotId) {

@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import type { GenerateMeta } from './types.js';
 
 export function createManagementKeyboard() {
   return new InlineKeyboard()
@@ -47,6 +48,28 @@ export function createTokenInvalidKeyboard() {
 
 export function createFlowCancelKeyboard() {
   return new InlineKeyboard().text('⬅️ Back', 'flow_cancel');
+}
+
+function checkboxLabel(checked: boolean, label: string) {
+  return `${checked ? '☑️' : '☐'} ${label}`;
+}
+
+export function createGenerateOptionsKeyboard(meta: GenerateMeta) {
+  return new InlineKeyboard()
+    .text(
+      checkboxLabel(meta.description, 'Description'),
+      'generate_meta_toggle:description',
+    )
+    .row()
+    .text(checkboxLabel(meta.about, 'About'), 'generate_meta_toggle:about')
+    .text(
+      checkboxLabel(meta.commands, 'Commands'),
+      'generate_meta_toggle:commands',
+    )
+    .row()
+    .text('🚀 Generate', 'generate_bot_confirm')
+    .row()
+    .text('⬅️ Back', 'flow_cancel');
 }
 
 export function createDeleteConfirmKeyboard() {

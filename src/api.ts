@@ -5,6 +5,7 @@ import type {
   BotVersion,
   BotStatus,
   CreateBotResult,
+  GenerateMeta,
   ImproveBotResult,
   UpdateBotTokenResult,
 } from './types.js';
@@ -65,6 +66,7 @@ export async function createUserBot(
     prompt: string;
     token: string;
     telegramUsername?: string;
+    generateMeta?: GenerateMeta;
   }
 ): Promise<CreateBotResult> {
   try {

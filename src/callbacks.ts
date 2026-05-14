@@ -1,6 +1,7 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
-import type { BackendBot, MyContext } from './types.js';
+import type { BackendBot, GenerateMeta, MyContext } from './types.js';
 import {
+  createUserBot,
   deleteBot,
   deployBotVersion,
   fetchBotLogs,
@@ -17,6 +18,7 @@ import {
   createBackToManagementKeyboard,
   createDeleteConfirmKeyboard,
   createFlowCancelKeyboard,
+  createGenerateOptionsKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
   createTokenInvalidKeyboard,
@@ -220,6 +222,111 @@ callbacks.callbackQuery('flow_cancel', async (ctx) => {
     await editMessageOrReply(ctx, 'Operation cancelled.');
   }
   delete ctx.session.flowMessageId;
+});
+
+callbacks.callbackQuery(
+  /^generate_meta_toggle:(description|about|commands)$/,
+  async (ctx) => {
+    const field = ctx.match[1] as 'description' | 'about' | 'commands';
+    const pendingBot = ctx.session.pendingBot;
+
+    if (
+      ctx.session.step !== 'awaiting_bot_generate_options' ||
+      !pendingBot?.generateMeta
+    ) {
+      return ctx.answerCallbackQuery('No generation in progress.');
+    }
+
+    pendingBot.generateMeta[field] = !pendingBot.generateMeta[field];
+    await ctx.answerCallbackQuery(
+      pendingBot.generateMeta[field] ? 'Enabled' : 'Disabled',
+    );
+    await ctx.editMessageReplyMarkup({
+      reply_markup: createGenerateOptionsKeyboard(pendingBot.generateMeta),
+    });
+  },
+);
+
+callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
+  const pendingBot = ctx.session.pendingBot;
+  if (
+    ctx.session.step !== 'awaiting_bot_generate_options' ||
+    !pendingBot?.prompt
+  ) {
+    return ctx.answerCallbackQuery('No bot description found.');
+  }
+
+  await ctx.answerCallbackQuery();
+  await ctx.replyWithChatAction('typing');
+  await editMessageOrReply(
+    ctx,
+    `Creating *${pendingBot.name}*... this might take a minute ⏳`,
+    {
+      parse_mode: 'Markdown',
+    },
+  );
+
+  const telegramId = String(ctx.from?.id);
+  try {
+    const createInput: {
+      name: string;
+      prompt: string;
+      token: string;
+      telegramUsername?: string;
+      generateMeta?: GenerateMeta;
+    } = {
+      name: pendingBot.name,
+      prompt: pendingBot.prompt,
+      token: pendingBot.token,
+    };
+    if (pendingBot.generateMeta) {
+      createInput.generateMeta = pendingBot.generateMeta;
+    }
+    if (pendingBot.username) {
+      createInput.telegramUsername = pendingBot.username;
+    }
+
+    const result = await createUserBot(telegramId, createInput);
+
+    ctx.session.activeBotId = result.botId;
+    ctx.session.activeBotName = pendingBot.name;
+    if (pendingBot.username) {
+      ctx.session.activeBotUsername = pendingBot.username;
+    }
+
+    const botName = pendingBot.name;
+    const botUsername = pendingBot.username;
+    clearFlowSession(ctx);
+
+    if (botUsername) {
+      ctx.session.activeBotUsername = botUsername;
+    }
+
+    await editMessageOrReply(
+      ctx,
+      await formatManagementMessage(
+        ctx.session.activeBotName || botName,
+        ctx.session.activeBotUsername,
+        await getActiveBotStatus(ctx).catch(() => null),
+        `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
+      ),
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createManagementKeyboard(),
+      },
+    );
+    delete ctx.session.flowMessageId;
+  } catch (error: unknown) {
+    console.error('Create error:', error);
+    const msg = error instanceof Error ? error.message : 'Failed to create bot.';
+    await editMessageOrReply(
+      ctx,
+      `❌ ${msg}\n\nPlease try again or contact support if the issue persists.`,
+      {
+        reply_markup: createFlowCancelKeyboard(),
+      },
+    );
+  }
 });
 
 callbacks.callbackQuery('list_bots', async (ctx) => {

@@ -25,6 +25,12 @@ export interface UpdateBotTokenResult {
   telegramUsername?: string | null;
 }
 
+export interface GenerateMeta {
+  description: boolean;
+  about: boolean;
+  commands: boolean;
+}
+
 export interface ImproveBotResult {
   success: boolean;
   message: string;
@@ -87,6 +93,7 @@ export interface SessionData {
   step?:
     | 'awaiting_managed_bot'
     | 'awaiting_bot_prompt'
+    | 'awaiting_bot_generate_options'
     | 'awaiting_update_managed_bot'
     | 'awaiting_improve_prompt'
     | undefined;
@@ -95,6 +102,7 @@ export interface SessionData {
     prompt: string;
     token: string;
     username?: string;
+    generateMeta?: GenerateMeta;
   } | undefined;
 }
 
