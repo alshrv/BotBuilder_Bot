@@ -17,7 +17,6 @@ import {
 } from './api.js';
 import {
   createBackToManagementKeyboard,
-  createCreateMethodKeyboard,
   createDeleteConfirmKeyboard,
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
@@ -210,21 +209,11 @@ function formatVersionPickerMessage(versions: BotVersion[]) {
   return `📦 *Bot Versions*\n\n${versionLines}\n\nSelect a version to deploy:`;
 }
 
-function formatCreateMethodMessage() {
-  return [
-    '✨ Create Bot',
-    '',
-    'How would you like to start?',
-  ].join('\n');
-}
-
 function formatManagedBotMessage() {
   return [
     '✨ Create Bot',
     '',
-    'Before we begin, create your Telegram managed bot.',
-    '',
-    'Tap below to continue.',
+    "Tap below and follow Telegram's prompt.",
   ].join('\n');
 }
 
@@ -333,21 +322,6 @@ function formatSuccessMessage(
   ].join('\n');
 }
 
-callbacks.callbackQuery('new_bot', async (ctx) => {
-  await ctx.answerCallbackQuery();
-  const message = formatCreateMethodMessage();
-  try {
-    await ctx.editMessageText(message, {
-      reply_markup: createCreateMethodKeyboard(),
-    });
-  } catch {
-    const reply = await ctx.reply(message, {
-      reply_markup: createCreateMethodKeyboard(),
-    });
-    ctx.session.flowMessageId = reply.message_id;
-  }
-});
-
 callbacks.callbackQuery('main_menu', async (ctx) => {
   clearFlowSession(ctx);
   await ctx.answerCallbackQuery();
@@ -364,7 +338,7 @@ callbacks.callbackQuery('main_menu', async (ctx) => {
   );
 });
 
-callbacks.callbackQuery('create_ai', async (ctx) => {
+async function beginManagedBotCreation(ctx: MyContext) {
   const telegramId = String(ctx.from?.id);
 
   try {
@@ -388,7 +362,11 @@ callbacks.callbackQuery('create_ai', async (ctx) => {
     reply_markup: createManagedBotKeyboard(),
   });
   ctx.session.flowMessageId = message.message_id;
-});
+}
+
+callbacks.callbackQuery('new_bot', beginManagedBotCreation);
+
+callbacks.callbackQuery('create_ai', beginManagedBotCreation);
 
 callbacks.callbackQuery('flow_cancel', async (ctx) => {
   clearFlowSession(ctx);

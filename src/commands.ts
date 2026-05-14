@@ -1,23 +1,36 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
-import { fetchUserBots } from './api.js';
+import { checkCreateBotAllowed, fetchUserBots } from './api.js';
 import { formatBotButtonLabel, formatBotListItem } from './bot-display.js';
 import {
-  createCreateMethodKeyboard,
+  createManagedBotKeyboard,
   createMainMenuKeyboard,
 } from './keyboards.js';
 
 export const commands = new Composer<MyContext>();
 
 async function beginNewBotFlow(ctx: MyContext) {
+  const telegramId = String(ctx.from?.id);
+
+  try {
+    await checkCreateBotAllowed(telegramId);
+  } catch (error) {
+    const msg =
+      error instanceof Error
+        ? error.message
+        : 'You cannot create another bot right now.';
+    return ctx.reply(`❌ ${msg}`);
+  }
+
+  ctx.session.step = 'awaiting_managed_bot';
   const message = await ctx.reply(
     [
       '✨ Create Bot',
       '',
-      'How would you like to start?',
+      "Tap below and follow Telegram's prompt.",
     ].join('\n'),
     {
-      reply_markup: createCreateMethodKeyboard(),
+      reply_markup: createManagedBotKeyboard(),
     },
   );
   ctx.session.flowMessageId = message.message_id;
