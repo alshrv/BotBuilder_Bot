@@ -85,6 +85,19 @@ async function cancelFlow(ctx: MyContext) {
   }
 
   await ctx.deleteMessage().catch(() => undefined);
+  if (ctx.session.activeBotId) {
+    await removeReplyKeyboard(ctx);
+    await ctx.reply(
+      await formatManagementMessage(ctx, 'Operation cancelled.'),
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createManagementKeyboard(),
+      },
+    );
+    delete ctx.session.flowMessageId;
+    return;
+  }
+
   await ctx.reply('Operation cancelled.', {
     reply_markup: { remove_keyboard: true },
   });

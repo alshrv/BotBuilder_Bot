@@ -2,12 +2,12 @@ import { InlineKeyboard } from 'grammy';
 
 export function createManagementKeyboard() {
   return new InlineKeyboard()
+    .text('✨ Improve Bot', 'bot_improve')
+    .row()
     .text('📜 Show Logs', 'bot_action:logs')
     .text('📊 Get Stats', 'bot_action:stats')
     .row()
     .text('🧾 Show Versions', 'bot_action:versions')
-    .text('✨ Improve Bot', 'bot_improve')
-    .row()
     .text('⚙️ Settings', 'bot_settings');
 }
 
@@ -46,7 +46,7 @@ export function createTokenInvalidKeyboard() {
 }
 
 export function createFlowCancelKeyboard() {
-  return new InlineKeyboard().text('❌ Cancel', 'flow_cancel');
+  return new InlineKeyboard().text('⬅️ Back', 'flow_cancel');
 }
 
 export function createDeleteConfirmKeyboard() {

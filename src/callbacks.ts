@@ -174,7 +174,15 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
 callbacks.callbackQuery('flow_cancel', async (ctx) => {
   clearFlowSession(ctx);
   await ctx.answerCallbackQuery('Cancelled');
-  await editMessageOrReply(ctx, 'Operation cancelled.');
+  if (ctx.session.activeBotId) {
+    const overview = await renderActiveBotManagement(ctx, 'Operation cancelled.');
+    await editMessageOrReply(ctx, overview.text, {
+      parse_mode: 'Markdown',
+      reply_markup: overview.keyboard,
+    });
+  } else {
+    await editMessageOrReply(ctx, 'Operation cancelled.');
+  }
   delete ctx.session.flowMessageId;
 });
 
@@ -200,6 +208,9 @@ callbacks.callbackQuery('list_bots', async (ctx) => {
   bots.forEach((b) => {
     keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
+  if (ctx.session.activeBotId) {
+    keyboard.text('⬅️ Back', 'bot_settings_back');
+  }
 
   const botList = bots.map(formatBotListItem).join('\n');
   await ctx.editMessageText(
@@ -260,13 +271,20 @@ callbacks.callbackQuery('get_stats_quick', async (ctx) => {
       data
     );
     if (finalContent) {
-      await ctx.reply(finalContent, { parse_mode: 'Markdown' });
+      await ctx.reply(finalContent, {
+        parse_mode: 'Markdown',
+        reply_markup: createBackToManagementKeyboard(),
+      });
     } else {
-      await ctx.reply('Action completed.');
+      await ctx.reply('Action completed.', {
+        reply_markup: createBackToManagementKeyboard(),
+      });
     }
   } catch (error) {
     console.error('Stats error:', error);
-    await ctx.reply('Error fetching stats.');
+    await ctx.reply('Error fetching stats.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 
@@ -329,7 +347,9 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
     });
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
-    await ctx.reply('I could not load that bot detail right now.');
+    await ctx.reply('I could not load that bot detail right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 
@@ -389,7 +409,9 @@ callbacks.callbackQuery('bot_logs_watch', async (ctx) => {
     );
   } catch (error) {
     console.error('Live logs start failed:', error);
-    await ctx.reply('I could not start live logs right now.');
+    await ctx.reply('I could not start live logs right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 
@@ -519,7 +541,9 @@ callbacks.callbackQuery(/^crash_logs:(.+)$/, async (ctx) => {
     });
   } catch (error) {
     console.error('Crash logs action failed:', error);
-    await ctx.reply('I could not load the crash logs right now.');
+    await ctx.reply('I could not load the crash logs right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 
@@ -550,7 +574,9 @@ callbacks.callbackQuery(/^crash_fix:(.+)$/, async (ctx) => {
     });
   } catch (error) {
     console.error('Crash fix action failed:', error);
-    await ctx.reply('I could not start the AI fix right now.');
+    await ctx.reply('I could not start the AI fix right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 
@@ -573,7 +599,9 @@ callbacks.callbackQuery(/^crash_restart:(.+)$/, async (ctx) => {
     });
   } catch (error) {
     console.error('Crash restart action failed:', error);
-    await ctx.reply('I could not restart the bot right now.');
+    await ctx.reply('I could not restart the bot right now.', {
+      reply_markup: createBackToManagementKeyboard(),
+    });
   }
 });
 

@@ -69,6 +69,9 @@ commands.command(['list', 'select'], async (ctx) => {
   bots.forEach((b) => {
     keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
+  if (ctx.session.activeBotId) {
+    keyboard.text('⬅️ Back', 'bot_settings_back');
+  }
 
   const botList = bots.map(formatBotListItem).join('\n');
   await ctx.reply(`*Your bots*\n${botList}\n\nSelect a bot to manage:`, {
