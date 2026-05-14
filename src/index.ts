@@ -10,7 +10,7 @@ const bot = new Bot<MyContext>(BOT_TOKEN!);
 // Install session middleware
 bot.use(
   session({
-    initial: (): SessionData => ({ chatHistory: [] }),
+    initial: (): SessionData => ({}),
   })
 );
 

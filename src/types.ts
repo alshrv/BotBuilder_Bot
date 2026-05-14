@@ -1,10 +1,5 @@
 import { Context } from 'grammy';
 
-export interface ChatHistoryItem {
-  role: 'user' | 'assistant';
-  text: string;
-}
-
 export interface BackendBot {
   id: string;
   name: string;
@@ -30,16 +25,15 @@ export interface UpdateBotTokenResult {
   telegramUsername?: string | null;
 }
 
-export interface BackendAction {
-  tool: string;
-  args?: Record<string, unknown>;
-}
-
-export interface BackendChatResponse {
-  type: string;
-  content?: string;
-  data?: unknown;
-  action?: BackendAction;
+export interface ImproveBotResult {
+  success: boolean;
+  message: string;
+  version: {
+    id: string;
+    versionNum: number;
+    prompt: string;
+    createdAt: string;
+  };
 }
 
 export interface BotStatus {
@@ -82,12 +76,11 @@ export interface SessionData {
   activeBotName?: string;
   activeBotUsername?: string;
   flowMessageId?: number;
-  chatHistory: ChatHistoryItem[];
   step?:
     | 'awaiting_managed_bot'
     | 'awaiting_bot_prompt'
     | 'awaiting_update_managed_bot'
-    | 'awaiting_confirmation'
+    | 'awaiting_improve_prompt'
     | undefined;
   pendingBot?: {
     name: string;
@@ -95,7 +88,6 @@ export interface SessionData {
     token: string;
     username?: string;
   } | undefined;
-  pendingAction?: BackendAction | null | undefined;
 }
 
 export type MyContext = Context & { session: SessionData };

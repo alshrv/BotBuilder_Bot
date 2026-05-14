@@ -6,6 +6,8 @@ export function createManagementKeyboard() {
     .text('📊 Get Stats', 'bot_action:stats')
     .row()
     .text('🧾 Show Versions', 'bot_action:versions')
+    .text('✨ Improve Bot', 'bot_improve')
+    .row()
     .text('⚙️ Settings', 'bot_settings');
 }
 

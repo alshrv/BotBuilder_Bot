@@ -1,13 +1,13 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
 import {
-  chatWithUserBot,
   deleteBot,
   fetchBotLogs,
   fetchBotStats,
   fetchBotStatus,
   fetchBotVersions,
   fetchUserBots,
+  improveBot,
   restartBot,
   resumeBot,
   stopBot,
@@ -15,6 +15,7 @@ import {
 import {
   createBackToManagementKeyboard,
   createDeleteConfirmKeyboard,
+  createFlowCancelKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
   createTokenInvalidKeyboard,
@@ -74,7 +75,6 @@ function isLiveLogsActive(ctx: MyContext) {
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
-  ctx.session.pendingAction = undefined;
 }
 
 function isTokenInvalid(status?: string | null) {
@@ -142,7 +142,6 @@ async function activateBotFromCallback(ctx: MyContext, botId: string) {
   ctx.session.activeBotId = botId;
   ctx.session.activeBotName = status.name;
   delete ctx.session.activeBotUsername;
-  ctx.session.chatHistory = [];
 
   return status;
 }
@@ -228,7 +227,6 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
       } else {
         delete ctx.session.activeBotUsername;
       }
-      ctx.session.chatHistory = []; // Reset history for new bot session
       await ctx.answerCallbackQuery(`Selected ${selectedBot.name}`);
       const overview = await renderActiveBotManagement(ctx);
       await editMessageOrReply(
@@ -245,46 +243,6 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
   } catch (error) {
     await ctx.answerCallbackQuery('Error selecting bot.');
   }
-});
-
-callbacks.callbackQuery('confirm_action', async (ctx) => {
-  if (!ctx.session.pendingAction || !ctx.session.activeBotId) return;
-  
-  const telegramId = String(ctx.from?.id);
-  const activeBotId = ctx.session.activeBotId;
-  const pendingAction = ctx.session.pendingAction;
-  await ctx.answerCallbackQuery('Confirmed!');
-  await ctx.editMessageText('Processing action... ⏳');
-
-  try {
-    const data = await chatWithUserBot(telegramId, activeBotId, {
-      message: 'Yes',
-      history: ctx.session.chatHistory,
-      confirmedAction: pendingAction,
-    });
-
-    ctx.session.pendingAction = null;
-    
-    const finalContent = formatDataPayload(data.type, data.content, data.data);
-    if (finalContent.length > 4000) {
-      for (let i = 0; i < finalContent.length; i += 4000) {
-        await ctx.reply(finalContent.substring(i, i + 4000), { parse_mode: 'Markdown' });
-      }
-    } else if (finalContent) {
-      await ctx.reply(finalContent, { parse_mode: 'Markdown' });
-    } else {
-      await ctx.reply('Action completed successfully.');
-    }
-  } catch (error: unknown) {
-    console.error('Confirm error:', error);
-    await ctx.reply('Error executing confirmed action.');
-  }
-});
-
-callbacks.callbackQuery('cancel_action', async (ctx) => {
-  ctx.session.pendingAction = null;
-  await ctx.answerCallbackQuery('Cancelled');
-  await ctx.editMessageText('Action cancelled.');
 });
 
 callbacks.callbackQuery('get_stats_quick', async (ctx) => {
@@ -468,6 +426,20 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
   );
 });
 
+callbacks.callbackQuery('bot_improve', async (ctx) => {
+  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
+
+  await ctx.answerCallbackQuery();
+  ctx.session.step = 'awaiting_improve_prompt';
+  const message = await ctx.reply(
+    'Tell me what to improve in this bot.',
+    {
+      reply_markup: createFlowCancelKeyboard(),
+    },
+  );
+  ctx.session.flowMessageId = message.message_id;
+});
+
 callbacks.callbackQuery('bot_update_token', async (ctx) => {
   if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
 
@@ -560,28 +532,10 @@ callbacks.callbackQuery(/^crash_fix:(.+)$/, async (ctx) => {
 
   try {
     await activateBotFromCallback(ctx, botId);
-    const message = 'Fix the latest crash using the latest error logs.';
-    const data = await chatWithUserBot(telegramId, botId, {
-      message,
-      history: [],
+    const result = await improveBot(telegramId, botId, {
+      prompt: 'Fix the latest crash using the latest error logs.',
     });
-
-    ctx.session.chatHistory = [{ role: 'user', text: message }];
-    if (data.content) {
-      ctx.session.chatHistory.push({ role: 'assistant', text: data.content });
-    }
-
-    if (data.type === 'confirm' && data.action) {
-      ctx.session.pendingAction = data.action;
-      await ctx.reply(data.content || 'Please confirm this backend action.', {
-        reply_markup: new InlineKeyboard()
-          .text('✅ Yes, Proceed', 'confirm_action')
-          .text('❌ Cancel', 'cancel_action'),
-      });
-      return;
-    }
-
-    const finalContent = formatDataPayload(data.type, data.content, data.data);
+    const finalContent = formatDataPayload('improve_bot', result.message, result);
     if (finalContent.length > 4000) {
       await sendFormattedReply(ctx, finalContent);
       await ctx.reply('Navigation:', {
@@ -648,7 +602,6 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
       delete ctx.session.activeBotId;
       delete ctx.session.activeBotName;
       delete ctx.session.activeBotUsername;
-      ctx.session.chatHistory = [];
       await editMessageOrReply(ctx, result?.message || 'Bot deleted.');
       return;
     }

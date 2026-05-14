@@ -1,12 +1,10 @@
 import axios from 'axios';
 import { BACKEND_URL, INTERNAL_BOT_SECRET } from './config.js';
 import type {
-  BackendAction,
   BackendBot,
-  BackendChatResponse,
   BotStatus,
-  ChatHistoryItem,
   CreateBotResult,
+  ImproveBotResult,
   UpdateBotTokenResult,
 } from './types.js';
 
@@ -79,26 +77,6 @@ export async function createUserBot(
   }
 }
 
-export async function chatWithUserBot(
-  telegramId: string,
-  botId: string,
-  input: {
-    message: string;
-    history: ChatHistoryItem[];
-    confirmedAction?: BackendAction | null;
-  }
-): Promise<BackendChatResponse> {
-  try {
-    const response = await api.post(
-      `/internal/bots/user/${telegramId}/chat/${botId}`,
-      input
-    );
-    return response.data;
-  } catch (error: unknown) {
-    throw toBackendApiError(error, 'Failed to chat with bot.');
-  }
-}
-
 export async function fetchBotLogs(
   telegramId: string,
   botId: string,
@@ -149,6 +127,22 @@ export async function fetchBotVersions(telegramId: string, botId: string) {
     return response.data;
   } catch (error: unknown) {
     throw toBackendApiError(error, 'Failed to fetch bot versions.');
+  }
+}
+
+export async function improveBot(
+  telegramId: string,
+  botId: string,
+  input: { prompt: string },
+): Promise<ImproveBotResult> {
+  try {
+    const response = await api.post(
+      `/internal/bots/user/${telegramId}/${botId}/improve`,
+      input,
+    );
+    return response.data;
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'Failed to improve bot.');
   }
 }
 

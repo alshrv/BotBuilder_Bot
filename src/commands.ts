@@ -29,7 +29,7 @@ commands.command('help', async (ctx) => {
     '/list - List your bots and select one\n' +
     '/select - Alias for /list\n' +
     '/cancel - Cancel current operation\n\n' +
-    'Once a bot is selected, you can talk to me naturally to manage it (e.g., "show logs", "deploy", "improve code").'
+    'Once a bot is selected, use the buttons below the bot dashboard to manage it.'
   );
 });
 
@@ -86,7 +86,6 @@ commands.command('cancel', async (ctx) => {
 
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
-  ctx.session.pendingAction = undefined;
   delete ctx.session.flowMessageId;
   await ctx.reply('Operation cancelled.', {
     reply_markup: { remove_keyboard: true },
