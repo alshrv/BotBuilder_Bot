@@ -1,75 +1,15 @@
-import { InlineKeyboard, Keyboard } from 'grammy';
+import { InlineKeyboard } from 'grammy';
 import type { GenerateMeta } from './types.js';
 
-function normalizeUsername(username?: string | null) {
-  return username?.trim().replace(/^@/, '');
-}
-
-export function createMainMenuKeyboard() {
-  return new Keyboard()
-    .text('🤖 Bots')
-    .text('➕ Create')
-    .row()
-    .text('📊 Analytics')
-    .text('⚙️ Settings')
-    .resized()
-    .persistent();
-}
-
-export function createEntryKeyboard() {
+export function createManagementKeyboard() {
   return new InlineKeyboard()
-    .text('✨ Create Bot', 'new_bot')
-    .text('🤖 My Bots', 'list_bots');
-}
-
-export function createCreateMethodKeyboard() {
-  return new InlineKeyboard()
-    .text('🧠 Generate with AI', 'create_ai')
+    .text('✨ Improve Bot', 'bot_improve')
     .row()
-    .text('🔙 Back', 'main_menu');
-}
-
-export function createManagedBotKeyboard(label = '➕ Create Telegram Bot') {
-  return new Keyboard()
-    .requestManagedBot(label, 1)
+    .text('📜 Show Logs', 'bot_action:logs')
+    .text('📊 Get Stats', 'bot_action:stats')
     .row()
-    .text('🔙 Back')
-    .resized()
-    .oneTime();
-}
-
-export function createManagementKeyboard(username?: string | null) {
-  const keyboard = new InlineKeyboard();
-  const normalized = normalizeUsername(username);
-
-  if (normalized) {
-    keyboard.url('🚀 Open Bot', `https://t.me/${normalized}`);
-    keyboard.text('📊 Analytics', 'bot_action:stats').row();
-  } else {
-    keyboard.text('📊 Analytics', 'bot_action:stats').row();
-  }
-
-  return keyboard
-    .text('🧠 Improve', 'bot_improve')
-    .text('🔄 Versions', 'bot_action:versions')
-    .row()
+    .text('🔁 Change Version', 'bot_action:versions')
     .text('⚙️ Settings', 'bot_settings');
-}
-
-export function createSuccessKeyboard(username?: string | null) {
-  const keyboard = new InlineKeyboard();
-  const normalized = normalizeUsername(username);
-
-  if (normalized) {
-    keyboard.url('🚀 Open Bot', `https://t.me/${normalized}`);
-    keyboard.text('⚙️ Manage', 'bot_settings_back').row();
-  } else {
-    keyboard.text('⚙️ Manage', 'bot_settings_back').row();
-  }
-
-  return keyboard
-    .text('📊 Analytics', 'bot_action:stats')
-    .text('🧠 Improve', 'bot_improve');
 }
 
 export function createSettingsKeyboard(
@@ -107,7 +47,7 @@ export function createTokenInvalidKeyboard() {
 }
 
 export function createFlowCancelKeyboard() {
-  return new InlineKeyboard().text('🔙 Back', 'flow_cancel');
+  return new InlineKeyboard().text('⬅️ Back', 'flow_cancel');
 }
 
 function checkboxLabel(checked: boolean, label: string) {
@@ -127,18 +67,17 @@ export function createGenerateOptionsKeyboard(meta: GenerateMeta) {
       'generate_meta_toggle:commands',
     )
     .row()
-    .text('🚀 Generate Bot', 'generate_bot_confirm')
+    .text('🚀 Generate', 'generate_bot_confirm')
     .row()
-    .text('✏️ Edit Prompt', 'edit_bot_prompt')
-    .text('🔙 Back', 'flow_cancel');
+    .text('⬅️ Back', 'flow_cancel');
 }
 
 export function createDeleteConfirmKeyboard() {
   return new InlineKeyboard()
     .text('Yes, delete', 'bot_control:delete')
-    .text('🔙 Back', 'bot_settings');
+    .text('⬅️ Back', 'bot_settings');
 }
 
 export function createBackToManagementKeyboard() {
-  return new InlineKeyboard().text('🔙 Back', 'bot_settings_back');
+  return new InlineKeyboard().text('⬅️ Back', 'bot_settings_back');
 }

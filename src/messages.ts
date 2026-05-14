@@ -1,25 +1,16 @@
-import { Composer, InlineKeyboard } from 'grammy';
-import type { BackendBot, BotStatus, GenerateMeta, MyContext } from './types.js';
+import { Composer } from 'grammy';
+import type { BotStatus, GenerateMeta, MyContext } from './types.js';
 import {
   checkCreateBotAllowed,
-  fetchBotStats,
   fetchBotStatus,
-  fetchUserBots,
   improveBot,
   updateBotToken,
 } from './api.js';
+import { formatBotUsername } from './bot-display.js';
 import {
-  formatBotButtonLabel,
-  formatBotListItem,
-  formatBotUsername,
-} from './bot-display.js';
-import {
-  createCreateMethodKeyboard,
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
-  createMainMenuKeyboard,
   createManagementKeyboard,
-  createSettingsKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
 
@@ -57,16 +48,6 @@ function formatBotState(status?: BotStatus | null) {
   return 'Stopped';
 }
 
-function formatBotStateWithEmoji(status?: BotStatus | null) {
-  const state = formatBotState(status);
-  if (state === 'Running') return '🟢 Running';
-  if (state === 'Starting') return '🟡 Starting';
-  if (state === 'Token invalid') return '🔑 Token invalid';
-  if (state === 'Errored') return '🔴 Errored';
-  if (state === 'Stopped') return '🔴 Stopped';
-  return '⚪ Unknown';
-}
-
 function formatCurrentVersion(status?: BotStatus | null) {
   const version = status?.currentVersion ?? status?.latestVersion;
   return version ? `v${version.versionNum}` : 'None';
@@ -85,8 +66,8 @@ async function formatManagementMessage(
   return [
     prefix,
     '',
-    `Status: ${formatBotStateWithEmoji(status)}`,
-    `Version: ${formatCurrentVersion(status)}`,
+    `*Bot state:* ${formatBotState(status)}`,
+    `*Current version:* ${formatCurrentVersion(status)}`,
   ].join('\n');
 }
 
@@ -107,78 +88,18 @@ function defaultGenerateMeta(): GenerateMeta {
   return {
     description: true,
     about: true,
-    commands: false,
+    commands: true,
   };
 }
 
-function formatPromptInputMessage(botName: string) {
+function formatGenerateOptionsMessage(description: string) {
   return [
-    '📝 Describe your bot',
-    '',
-    `Bot Name: ${botName}`,
-    '',
-    'Examples:',
-    '• Restaurant ordering bot',
-    '• Quiz bot for students',
-    '• Crypto alerts bot',
-    '• Booking assistant',
-    '',
-    'Send your idea below.',
-  ].join('\n');
-}
-
-function formatGenerateOptionsMessage(name: string, description: string) {
-  return [
-    '⚙️ Generation Options',
-    '',
-    `Bot Name: ${name}`,
-    '',
-    'Selected Features:',
-    'Use the toggles below.',
-    '',
-    'Prompt:',
+    '✏️ Bot description',
     '',
     description,
+    '',
+    '⚙️ Also generate with AI:',
   ].join('\n');
-}
-
-async function showCreateMethod(ctx: MyContext) {
-  const message = await ctx.reply(
-    [
-      '✨ Create Bot',
-      '',
-      'How would you like to start?',
-    ].join('\n'),
-    {
-      reply_markup: createCreateMethodKeyboard(),
-    },
-  );
-  ctx.session.flowMessageId = message.message_id;
-}
-
-async function showBotList(ctx: MyContext, bots: BackendBot[]) {
-  if (bots.length === 0) {
-    await ctx.reply("You haven't created any bots yet. Tap ➕ Create to start.", {
-      reply_markup: createMainMenuKeyboard(),
-    });
-    return;
-  }
-
-  const keyboard = new InlineKeyboard();
-  bots.forEach((bot) => {
-    keyboard.text(formatBotButtonLabel(bot), `select_bot:${bot.id}`).row();
-  });
-  if (ctx.session.activeBotId) {
-    keyboard.text('🔙 Back', 'bot_settings_back');
-  }
-
-  await ctx.reply(
-    `🤖 *Your Bots*\n\n${bots.map(formatBotListItem).join('\n')}\n\nSelect a bot to manage:`,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard,
-    },
-  );
 }
 
 async function cancelFlow(ctx: MyContext) {
@@ -197,7 +118,7 @@ async function cancelFlow(ctx: MyContext) {
       await formatManagementMessage(ctx, 'Operation cancelled.'),
       {
         parse_mode: 'Markdown',
-        reply_markup: createManagementKeyboard(ctx.session.activeBotUsername),
+        reply_markup: createManagementKeyboard(),
       },
     );
     delete ctx.session.flowMessageId;
@@ -205,7 +126,7 @@ async function cancelFlow(ctx: MyContext) {
   }
 
   await ctx.reply('Operation cancelled.', {
-    reply_markup: createMainMenuKeyboard(),
+    reply_markup: { remove_keyboard: true },
   });
   delete ctx.session.flowMessageId;
 }
@@ -255,7 +176,7 @@ messages.on('message:managed_bot_created', async (ctx) => {
         ),
         {
           parse_mode: 'Markdown',
-          reply_markup: createManagementKeyboard(ctx.session.activeBotUsername),
+          reply_markup: createManagementKeyboard(),
         }
       );
       delete ctx.session.flowMessageId;
@@ -289,8 +210,9 @@ messages.on('message:managed_bot_created', async (ctx) => {
     
     await editFlowMessageOrReply(
       ctx,
-      formatPromptInputMessage(botName),
+      `🎉 Great! You've successfully created *${botName}*.\n\n✏️ *Describe your bot*\n\nFor example:\n_"A bot that sends a random joke every morning"_`,
       {
+        parse_mode: 'Markdown',
         reply_markup: createFlowCancelKeyboard(),
       }
     );
@@ -314,75 +236,9 @@ messages.on('message:text', async (ctx) => {
 
   if (
     text === 'Cancel' ||
-    text === '❌ Cancel' ||
-    text === '🔙 Back'
+    text === '❌ Cancel'
   ) {
     await cancelFlow(ctx);
-    return;
-  }
-
-  if (!ctx.session.step && text === '➕ Create') {
-    await showCreateMethod(ctx);
-    return;
-  }
-
-  if (!ctx.session.step && text === '🤖 Bots') {
-    try {
-      await showBotList(ctx, await fetchUserBots(telegramId));
-    } catch (error) {
-      console.error('Error fetching bots:', error);
-      await ctx.reply(
-        'I could not reach the BotBuilder backend. Please try again in a moment.',
-      );
-    }
-    return;
-  }
-
-  if (!ctx.session.step && text === '📊 Analytics') {
-    if (!ctx.session.activeBotId) {
-      await ctx.reply('Select a bot first from 🤖 Bots.');
-      return;
-    }
-
-    try {
-      const stats = await fetchBotStats(telegramId, ctx.session.activeBotId);
-      await ctx.reply(
-        formatDataPayload(
-          'get_stats',
-          `📊 *${ctx.session.activeBotName ?? 'Bot'} Analytics*`,
-          stats,
-        ),
-        {
-          parse_mode: 'Markdown',
-          reply_markup: createManagementKeyboard(ctx.session.activeBotUsername),
-        },
-      );
-    } catch (error) {
-      console.error('Stats error:', error);
-      await ctx.reply('I could not load analytics right now.');
-    }
-    return;
-  }
-
-  if (!ctx.session.step && text === '⚙️ Settings') {
-    if (!ctx.session.activeBotId) {
-      await ctx.reply('Select a bot first from 🤖 Bots.');
-      return;
-    }
-
-    try {
-      const status = await fetchBotStatus(telegramId, ctx.session.activeBotId);
-      await ctx.reply('⚙️ Bot Settings', {
-        reply_markup: createSettingsKeyboard(
-          Boolean(status?.isActive),
-          status?.status === 'token_invalid',
-          false,
-        ),
-      });
-    } catch (error) {
-      console.error('Settings error:', error);
-      await ctx.reply('I could not load settings right now.');
-    }
     return;
   }
 
@@ -417,7 +273,7 @@ messages.on('message:text', async (ctx) => {
         formatDataPayload('improve_bot', result.message, result),
         {
           parse_mode: 'Markdown',
-          reply_markup: createManagementKeyboard(ctx.session.activeBotUsername),
+          reply_markup: createManagementKeyboard(),
         },
       );
     } catch (error: unknown) {
@@ -440,10 +296,7 @@ messages.on('message:text', async (ctx) => {
       ctx.session.step = 'awaiting_bot_generate_options';
       await ctx.deleteMessage().catch(() => undefined);
 
-      await editFlowMessageOrReply(ctx, formatGenerateOptionsMessage(
-        ctx.session.pendingBot.name,
-        text,
-      ), {
+      await editFlowMessageOrReply(ctx, formatGenerateOptionsMessage(text), {
         reply_markup: createGenerateOptionsKeyboard(
           ctx.session.pendingBot.generateMeta,
         ),

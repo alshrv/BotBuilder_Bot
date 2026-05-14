@@ -1,4 +1,4 @@
-import { Composer, InlineKeyboard } from 'grammy';
+import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, GenerateMeta, MyContext } from './types.js';
 import {
   checkCreateBotAllowed,
@@ -17,15 +17,11 @@ import {
 } from './api.js';
 import {
   createBackToManagementKeyboard,
-  createCreateMethodKeyboard,
   createDeleteConfirmKeyboard,
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
-  createEntryKeyboard,
-  createManagedBotKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
-  createSuccessKeyboard,
   createTokenInvalidKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
@@ -98,16 +94,6 @@ function formatBotState(status?: BotStatus | null) {
   return 'Stopped';
 }
 
-function formatBotStateWithEmoji(status?: BotStatus | null) {
-  const state = formatBotState(status);
-  if (state === 'Running') return '🟢 Running';
-  if (state === 'Starting') return '🟡 Starting';
-  if (state === 'Token invalid') return '🔑 Token invalid';
-  if (state === 'Errored') return '🔴 Errored';
-  if (state === 'Stopped') return '🔴 Stopped';
-  return '⚪ Unknown';
-}
-
 function formatCurrentVersion(status?: BotStatus | null) {
   const version = status?.currentVersion ?? status?.latestVersion;
   return version ? `v${version.versionNum}` : 'None';
@@ -119,17 +105,15 @@ function formatManagementMessage(
   status?: BotStatus | null,
   prefix?: string,
 ) {
-  const title = `🤖 *${name}*`;
-  const usernameLine = username ? `Username: ${formatBotUsername(username)}` : null;
-
+  const header =
+    prefix ??
+    `Now managing *${name}* (${formatBotUsername(username)}).`;
   return [
-    prefix,
-    title,
-    usernameLine,
+    header,
     '',
-    `Status: ${formatBotStateWithEmoji(status)}`,
-    `Version: ${formatCurrentVersion(status)}`,
-  ].filter((line) => line !== undefined && line !== null).join('\n');
+    `*Bot state:* ${formatBotState(status)}`,
+    `*Current version:* ${formatCurrentVersion(status)}`,
+  ].join('\n');
 }
 
 async function renderActiveBotManagement(ctx: MyContext, prefix?: string) {
@@ -144,7 +128,7 @@ async function renderActiveBotManagement(ctx: MyContext, prefix?: string) {
     ),
     keyboard: isTokenInvalid(status?.status)
       ? createTokenInvalidKeyboard()
-      : createManagementKeyboard(ctx.session.activeBotUsername),
+      : createManagementKeyboard(),
   };
 }
 
@@ -207,164 +191,10 @@ function formatVersionPickerMessage(versions: BotVersion[]) {
     })
     .join('\n\n');
 
-  return `📦 *Bot Versions*\n\n${versionLines}\n\nSelect a version to deploy:`;
-}
-
-function formatCreateMethodMessage() {
-  return [
-    '✨ Create Bot',
-    '',
-    'How would you like to start?',
-  ].join('\n');
-}
-
-function formatManagedBotMessage() {
-  return [
-    '✨ Create Bot',
-    '',
-    'Before we begin, create your Telegram managed bot.',
-    '',
-    'Tap below to continue.',
-  ].join('\n');
-}
-
-function formatPromptInputMessage(botName: string) {
-  return [
-    '📝 Describe your bot',
-    '',
-    `Bot Name: ${botName}`,
-    '',
-    'Examples:',
-    '• Restaurant ordering bot',
-    '• Quiz bot for students',
-    '• Crypto alerts bot',
-    '• Booking assistant',
-    '',
-    'Send your idea below.',
-  ].join('\n');
-}
-
-function formatGenerateOptionsMessage(name: string, description: string) {
-  return [
-    '⚙️ Generation Options',
-    '',
-    `Bot Name: ${name}`,
-    '',
-    'Selected Features:',
-    'Use the toggles below.',
-    '',
-    'Prompt:',
-    '',
-    description,
-  ].join('\n');
-}
-
-function formatGenerationProgress(name: string, frame: number) {
-  const frames = [
-    {
-      bar: '▰▱▱▱▱▱▱▱',
-      percent: '15%',
-      lines: [
-        '⏳ Improving prompt',
-        '⏳ Generating structure',
-        '⏳ Writing handlers',
-        '⏳ Creating menus',
-        '⏳ Deploying bot',
-      ],
-    },
-    {
-      bar: '▰▰▰▱▱▱▱▱',
-      percent: '35%',
-      lines: [
-        '✓ Improving prompt',
-        '⏳ Generating structure',
-        '⏳ Writing handlers',
-        '⏳ Creating menus',
-        '⏳ Deploying bot',
-      ],
-    },
-    {
-      bar: '▰▰▰▰▰▱▱▱',
-      percent: '60%',
-      lines: [
-        '✓ Improving prompt',
-        '✓ Generating structure',
-        '⏳ Writing handlers',
-        '⏳ Creating menus',
-        '⏳ Deploying bot',
-      ],
-    },
-    {
-      bar: '▰▰▰▰▰▰▰▱',
-      percent: '85%',
-      lines: [
-        '✓ Improving prompt',
-        '✓ Generating structure',
-        '✓ Writing handlers',
-        '✓ Creating menus',
-        '⏳ Deploying bot',
-      ],
-    },
-  ];
-  const state = frames[Math.min(frame, frames.length - 1)]!;
-
-  return [
-    '🧠 Building your bot...',
-    '',
-    `*${name}*`,
-    '',
-    `${state.bar} ${state.percent}`,
-    '',
-    ...state.lines,
-  ].join('\n');
-}
-
-function formatSuccessMessage(
-  name: string,
-  username?: string | null,
-  status?: BotStatus | null,
-) {
-  return [
-    '✅ Bot Generated Successfully',
-    '',
-    `🤖 *${name}*${username ? ` (${formatBotUsername(username)})` : ''}`,
-    `Status: ${formatBotStateWithEmoji(status)}`,
-    `Version: ${formatCurrentVersion(status)}`,
-  ].join('\n');
+  return `*Change Version*\n\n${versionLines}\n\nSelect a version to run:`;
 }
 
 callbacks.callbackQuery('new_bot', async (ctx) => {
-  await ctx.answerCallbackQuery();
-  const message = formatCreateMethodMessage();
-  try {
-    await ctx.editMessageText(message, {
-      reply_markup: createCreateMethodKeyboard(),
-    });
-  } catch {
-    const reply = await ctx.reply(message, {
-      reply_markup: createCreateMethodKeyboard(),
-    });
-    ctx.session.flowMessageId = reply.message_id;
-  }
-});
-
-callbacks.callbackQuery('main_menu', async (ctx) => {
-  clearFlowSession(ctx);
-  await ctx.answerCallbackQuery();
-  await editMessageOrReply(
-    ctx,
-    [
-      '🤖 BotBuilder',
-      '',
-      'Create and manage Telegram bots with AI.',
-    ].join('\n'),
-    {
-      reply_markup: createEntryKeyboard(),
-    },
-  );
-});
-
-callbacks.callbackQuery('create_ai', async (ctx) => {
   const telegramId = String(ctx.from?.id);
 
   try {
@@ -383,9 +213,15 @@ callbacks.callbackQuery('create_ai', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_managed_bot';
+  const keyboard = new Keyboard()
+    .requestManagedBot('➕ Create Managed Bot', 1)
+    .row()
+    .text('❌ Cancel')
+    .resized()
+    .oneTime();
 
-  const message = await ctx.reply(formatManagedBotMessage(), {
-    reply_markup: createManagedBotKeyboard(),
+  const message = await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
+    reply_markup: keyboard,
   });
   ctx.session.flowMessageId = message.message_id;
 });
@@ -400,17 +236,7 @@ callbacks.callbackQuery('flow_cancel', async (ctx) => {
       reply_markup: overview.keyboard,
     });
   } else {
-    await editMessageOrReply(
-      ctx,
-      [
-        '🤖 BotBuilder',
-        '',
-        'Create and manage Telegram bots with AI.',
-      ].join('\n'),
-      {
-        reply_markup: createEntryKeyboard(),
-      },
-    );
+    await editMessageOrReply(ctx, 'Operation cancelled.');
   }
   delete ctx.session.flowMessageId;
 });
@@ -438,19 +264,6 @@ callbacks.callbackQuery(
   },
 );
 
-callbacks.callbackQuery('edit_bot_prompt', async (ctx) => {
-  const pendingBot = ctx.session.pendingBot;
-  if (!pendingBot) {
-    return ctx.answerCallbackQuery('No generation in progress.');
-  }
-
-  await ctx.answerCallbackQuery();
-  ctx.session.step = 'awaiting_bot_prompt';
-  await editMessageOrReply(ctx, formatPromptInputMessage(pendingBot.name), {
-    reply_markup: createFlowCancelKeyboard(),
-  });
-});
-
 callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
   const pendingBot = ctx.session.pendingBot;
   if (
@@ -462,19 +275,13 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   await ctx.replyWithChatAction('typing');
-  await editMessageOrReply(ctx, formatGenerationProgress(pendingBot.name, 0), {
-    parse_mode: 'Markdown',
-  });
-
-  let progressFrame = 1;
-  const progressTimer = setInterval(() => {
-    void ctx
-      .editMessageText(formatGenerationProgress(pendingBot.name, progressFrame), {
-        parse_mode: 'Markdown',
-      })
-      .catch(() => undefined);
-    progressFrame = Math.min(progressFrame + 1, 3);
-  }, 2500);
+  await editMessageOrReply(
+    ctx,
+    `Creating *${pendingBot.name}*... this might take a minute ⏳`,
+    {
+      parse_mode: 'Markdown',
+    },
+  );
 
   const telegramId = String(ctx.from?.id);
   try {
@@ -497,7 +304,6 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
     }
 
     const result = await createUserBot(telegramId, createInput);
-    clearInterval(progressTimer);
 
     ctx.session.activeBotId = result.botId;
     ctx.session.activeBotName = pendingBot.name;
@@ -513,23 +319,21 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
       ctx.session.activeBotUsername = botUsername;
     }
 
-    const status = await getActiveBotStatus(ctx).catch(() => null);
-
     await editMessageOrReply(
       ctx,
-      formatSuccessMessage(
+      await formatManagementMessage(
         ctx.session.activeBotName || botName,
         ctx.session.activeBotUsername,
-        status,
+        await getActiveBotStatus(ctx).catch(() => null),
+        `✅ Bot *${botName}* (${formatBotUsername(ctx.session.activeBotUsername)}) created successfully! You can now manage it here.`,
       ),
       {
         parse_mode: 'Markdown',
-        reply_markup: createSuccessKeyboard(ctx.session.activeBotUsername),
+        reply_markup: createManagementKeyboard(),
       },
     );
     delete ctx.session.flowMessageId;
   } catch (error: unknown) {
-    clearInterval(progressTimer);
     console.error('Create error:', error);
     const msg = error instanceof Error ? error.message : 'Failed to create bot.';
     await editMessageOrReply(
@@ -565,12 +369,12 @@ callbacks.callbackQuery('list_bots', async (ctx) => {
     keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
   if (ctx.session.activeBotId) {
-    keyboard.text('🔙 Back', 'bot_settings_back');
+    keyboard.text('⬅️ Back', 'bot_settings_back');
   }
 
   const botList = bots.map(formatBotListItem).join('\n');
   await ctx.editMessageText(
-    `🤖 *Your Bots*\n\n${botList}\n\nSelect a bot to manage:`,
+    `*Your bots*\n${botList}\n\nSelect a bot to manage:`,
     {
       parse_mode: 'Markdown',
       reply_markup: keyboard,
@@ -788,7 +592,7 @@ callbacks.callbackQuery('bot_logs_watch', async (ctx) => {
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
     await editMessageOrReply(
       ctx,
-      `⚙️ *${ctx.session.activeBotName ?? 'Bot'} Settings*\n\n*Live logs:* On`,
+      `Bot settings:\n\n*Live logs:* On`,
       {
         parse_mode: 'Markdown',
         reply_markup: replyMarkup,
@@ -812,7 +616,7 @@ callbacks.callbackQuery('bot_logs_stop', async (ctx) => {
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
   await editMessageOrReply(
     ctx,
-    `⚙️ *${ctx.session.activeBotName ?? 'Bot'} Settings*\n\n*Live logs:* Off`,
+    `Bot settings:\n\n*Live logs:* Off`,
     {
       parse_mode: 'Markdown',
       reply_markup: replyMarkup,
@@ -827,7 +631,7 @@ callbacks.callbackQuery('bot_settings', async (ctx) => {
   const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
   await editMessageOrReply(
     ctx,
-    `⚙️ *${ctx.session.activeBotName ?? 'Bot'} Settings*\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+    `Bot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
     {
       parse_mode: 'Markdown',
       reply_markup: replyMarkup,
@@ -841,17 +645,7 @@ callbacks.callbackQuery('bot_improve', async (ctx) => {
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_improve_prompt';
   const message = await ctx.reply(
-    [
-      `🧠 Improve ${ctx.session.activeBotName ?? 'this bot'}`,
-      '',
-      'Describe what you want to improve.',
-      '',
-      'Examples:',
-      '• Add payment system',
-      '• Add multilingual support',
-      '• Make UI cleaner',
-      '• Add admin analytics',
-    ].join('\n'),
+    'Tell me what to improve in this bot.',
     {
       reply_markup: createFlowCancelKeyboard(),
     },
@@ -864,11 +658,17 @@ callbacks.callbackQuery('bot_update_token', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_update_managed_bot';
+  const keyboard = new Keyboard()
+    .requestManagedBot('🔑 Update Token', 1)
+    .row()
+    .text('❌ Cancel')
+    .resized()
+    .oneTime();
 
   const message = await ctx.reply(
     "Click the button below and choose the replacement bot from Telegram's prompt.",
     {
-      reply_markup: createManagedBotKeyboard('🔑 Update Token'),
+      reply_markup: keyboard,
     }
   );
   ctx.session.flowMessageId = message.message_id;
@@ -1028,7 +828,7 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
     await editMessageOrReply(
       ctx,
-      `${result?.message || `Bot ${action} completed.`}\n\n⚙️ *${ctx.session.activeBotName ?? 'Bot'} Settings*\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+      `${result?.message || `Bot ${action} completed.`}\n\nBot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
       {
         parse_mode: 'Markdown',
         reply_markup: replyMarkup,
@@ -1039,7 +839,7 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
     const replyMarkup = await createActiveBotSettingsKeyboard(ctx);
     await editMessageOrReply(
       ctx,
-      `I could not ${action} the bot right now.\n\n⚙️ *${ctx.session.activeBotName ?? 'Bot'} Settings*\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
+      `I could not ${action} the bot right now.\n\nBot settings:\n\n*Live logs:* ${isLiveLogsActive(ctx) ? 'On' : 'Off'}`,
       {
         parse_mode: 'Markdown',
         reply_markup: replyMarkup,
