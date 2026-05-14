@@ -135,6 +135,18 @@ async function getActiveBotStatus(ctx: MyContext) {
   return fetchBotStatus(telegramId, ctx.session.activeBotId);
 }
 
+async function activateBotFromCallback(ctx: MyContext, botId: string) {
+  const telegramId = String(ctx.from?.id);
+  const status = await fetchBotStatus(telegramId, botId);
+
+  ctx.session.activeBotId = botId;
+  ctx.session.activeBotName = status.name;
+  delete ctx.session.activeBotUsername;
+  ctx.session.chatHistory = [];
+
+  return status;
+}
+
 async function createActiveBotSettingsKeyboard(ctx: MyContext) {
   const status = await getActiveBotStatus(ctx);
   return createSettingsKeyboard(
@@ -504,6 +516,111 @@ callbacks.callbackQuery('bot_settings_back', async (ctx) => {
       reply_markup: overview.keyboard,
     }
   );
+});
+
+callbacks.callbackQuery(/^crash_logs:(.+)$/, async (ctx) => {
+  const botId = ctx.match[1]!;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+
+  try {
+    await activateBotFromCallback(ctx, botId);
+    const data = await fetchBotLogs(telegramId, botId);
+    const finalContent = formatDataPayload(
+      'get_logs',
+      'Here are the latest logs.',
+      data,
+    );
+
+    if (finalContent.length > 4000) {
+      await sendFormattedReply(ctx, finalContent);
+      await ctx.reply('Navigation:', {
+        reply_markup: createBackToManagementKeyboard(),
+      });
+      return;
+    }
+
+    await ctx.reply(finalContent || 'No logs yet.', {
+      parse_mode: 'Markdown',
+      reply_markup: createBackToManagementKeyboard(),
+    });
+  } catch (error) {
+    console.error('Crash logs action failed:', error);
+    await ctx.reply('I could not load the crash logs right now.');
+  }
+});
+
+callbacks.callbackQuery(/^crash_fix:(.+)$/, async (ctx) => {
+  const botId = ctx.match[1]!;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+  await ctx.replyWithChatAction('typing');
+
+  try {
+    await activateBotFromCallback(ctx, botId);
+    const message = 'Fix the latest crash using the latest error logs.';
+    const data = await chatWithUserBot(telegramId, botId, {
+      message,
+      history: [],
+    });
+
+    ctx.session.chatHistory = [{ role: 'user', text: message }];
+    if (data.content) {
+      ctx.session.chatHistory.push({ role: 'assistant', text: data.content });
+    }
+
+    if (data.type === 'confirm' && data.action) {
+      ctx.session.pendingAction = data.action;
+      await ctx.reply(data.content || 'Please confirm this backend action.', {
+        reply_markup: new InlineKeyboard()
+          .text('✅ Yes, Proceed', 'confirm_action')
+          .text('❌ Cancel', 'cancel_action'),
+      });
+      return;
+    }
+
+    const finalContent = formatDataPayload(data.type, data.content, data.data);
+    if (finalContent.length > 4000) {
+      await sendFormattedReply(ctx, finalContent);
+      await ctx.reply('Navigation:', {
+        reply_markup: createBackToManagementKeyboard(),
+      });
+      return;
+    }
+
+    await ctx.reply(finalContent || 'I started working on a fix.', {
+      parse_mode: 'Markdown',
+      reply_markup: createBackToManagementKeyboard(),
+    });
+  } catch (error) {
+    console.error('Crash fix action failed:', error);
+    await ctx.reply('I could not start the AI fix right now.');
+  }
+});
+
+callbacks.callbackQuery(/^crash_restart:(.+)$/, async (ctx) => {
+  const botId = ctx.match[1]!;
+  const telegramId = String(ctx.from?.id);
+
+  await ctx.answerCallbackQuery();
+
+  try {
+    await activateBotFromCallback(ctx, botId);
+    const result = await restartBot(telegramId, botId);
+    const overview = await renderActiveBotManagement(
+      ctx,
+      result?.message || 'Bot restart requested.',
+    );
+    await ctx.reply(overview.text, {
+      parse_mode: 'Markdown',
+      reply_markup: overview.keyboard,
+    });
+  } catch (error) {
+    console.error('Crash restart action failed:', error);
+    await ctx.reply('I could not restart the bot right now.');
+  }
 });
 
 callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx) => {
