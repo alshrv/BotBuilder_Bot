@@ -1,35 +1,23 @@
-import { Composer, InlineKeyboard, Keyboard } from 'grammy';
+import { Composer, InlineKeyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
-import { checkCreateBotAllowed, fetchUserBots } from './api.js';
+import { fetchUserBots } from './api.js';
 import { formatBotButtonLabel, formatBotListItem } from './bot-display.js';
+import {
+  createCreateMethodKeyboard,
+  createMainMenuKeyboard,
+} from './keyboards.js';
 
 export const commands = new Composer<MyContext>();
 
 async function beginNewBotFlow(ctx: MyContext) {
-  const telegramId = String(ctx.from?.id);
-
-  try {
-    await checkCreateBotAllowed(telegramId);
-  } catch (error) {
-    const msg =
-      error instanceof Error
-        ? error.message
-        : 'You cannot create another bot right now.';
-    return ctx.reply(`❌ ${msg}`);
-  }
-
-  ctx.session.step = 'awaiting_managed_bot';
-  const keyboard = new Keyboard()
-    .requestManagedBot('➕ Create Managed Bot', 1)
-    .row()
-    .text('❌ Cancel')
-    .resized()
-    .oneTime();
-
   const message = await ctx.reply(
-    "To create a new bot, click the button below and follow Telegram's prompt.",
+    [
+      '✨ Create Bot',
+      '',
+      'How would you like to start?',
+    ].join('\n'),
     {
-      reply_markup: keyboard,
+      reply_markup: createCreateMethodKeyboard(),
     },
   );
   ctx.session.flowMessageId = message.message_id;
@@ -37,29 +25,32 @@ async function beginNewBotFlow(ctx: MyContext) {
 
 commands.command('start', async (ctx) => {
   await ctx.reply(
-    'Welcome to BotBuilder! 🤖\n\n' +
-    'I am your assistant to create and manage Telegram bots.\n\n' +
-    'Commands:\n' +
-    '/new - Create a new bot\n' +
-    '/list - List your bots\n' +
-    '/select - Select a bot to manage\n' +
-    '/help - Show this message',
+    [
+      '🤖 BotBuilder',
+      '',
+      'Create and manage Telegram bots with AI.',
+    ].join('\n'),
     {
-      reply_markup: new InlineKeyboard()
-        .text('🆕 Create Bot', 'new_bot')
-        .text('📋 List My Bots', 'list_bots'),
+      reply_markup: createMainMenuKeyboard(),
     }
   );
 });
 
 commands.command('help', async (ctx) => {
   await ctx.reply(
-    'Commands:\n' +
-    '/new - Create a new bot\n' +
-    '/list - List your bots and select one\n' +
-    '/select - Alias for /list\n' +
-    '/cancel - Cancel current operation\n\n' +
-    'Once a bot is selected, use the buttons below the bot dashboard to manage it.'
+    [
+      '🤖 BotBuilder',
+      '',
+      '/new - Create a bot with AI',
+      '/list - Show your bots',
+      '/select - Alias for /list',
+      '/cancel - Cancel the current flow',
+      '',
+      'You can also use the bottom keyboard for the main actions.',
+    ].join('\n'),
+    {
+      reply_markup: createMainMenuKeyboard(),
+    },
   );
 });
 
@@ -89,11 +80,11 @@ commands.command(['list', 'select'], async (ctx) => {
     keyboard.text(formatBotButtonLabel(b), `select_bot:${b.id}`).row();
   });
   if (ctx.session.activeBotId) {
-    keyboard.text('⬅️ Back', 'bot_settings_back');
+    keyboard.text('🔙 Back', 'bot_settings_back');
   }
 
   const botList = bots.map(formatBotListItem).join('\n');
-  await ctx.reply(`*Your bots*\n${botList}\n\nSelect a bot to manage:`, {
+  await ctx.reply(`🤖 *Your Bots*\n\n${botList}\n\nSelect a bot to manage:`, {
     parse_mode: 'Markdown',
     reply_markup: keyboard,
   });
@@ -110,6 +101,6 @@ commands.command('cancel', async (ctx) => {
   ctx.session.pendingBot = undefined;
   delete ctx.session.flowMessageId;
   await ctx.reply('Operation cancelled.', {
-    reply_markup: { remove_keyboard: true },
+    reply_markup: createMainMenuKeyboard(),
   });
 });

@@ -6,12 +6,22 @@ export function formatBotUsername(username?: string | null) {
 }
 
 export function formatBotListItem(bot: BackendBot) {
-  const status = bot.status === 'token_invalid' ? ' - 🔑 token invalid' : '';
-  return `• *${bot.name}* (${formatBotUsername(bot.telegramUsername)})${status}`;
+  const status =
+    bot.status === 'token_invalid'
+      ? '🔴 Token invalid'
+      : bot.isActive === false
+        ? '🔴 Stopped'
+        : '🟢 Online';
+  return `• *${bot.name}*      ${status}`;
 }
 
 export function formatBotButtonLabel(bot: BackendBot) {
   const username = bot.telegramUsername?.trim().replace(/^@/, '');
-  const suffix = bot.status === 'token_invalid' ? ' 🔑' : '';
+  const suffix =
+    bot.status === 'token_invalid'
+      ? ' 🔑'
+      : bot.isActive === false
+        ? ' 🔴'
+        : ' 🟢';
   return username ? `${bot.name} (@${username})${suffix}` : `${bot.name}${suffix}`;
 }
