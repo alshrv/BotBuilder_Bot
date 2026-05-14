@@ -22,7 +22,14 @@ export function createEntryKeyboard() {
     .text('🤖 My Bots', 'list_bots');
 }
 
-export function createManagedBotKeyboard(label = '➕ Continue') {
+export function createCreateMethodKeyboard() {
+  return new InlineKeyboard()
+    .text('🧠 Generate with AI', 'create_ai')
+    .row()
+    .text('🔙 Back', 'main_menu');
+}
+
+export function createManagedBotKeyboard(label = '➕ Create Telegram Bot') {
   return new Keyboard()
     .requestManagedBot(label, 1)
     .row()

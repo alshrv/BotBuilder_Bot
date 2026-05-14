@@ -14,10 +14,10 @@ import {
   formatBotUsername,
 } from './bot-display.js';
 import {
+  createCreateMethodKeyboard,
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
   createMainMenuKeyboard,
-  createManagedBotKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
 } from './keyboards.js';
@@ -142,27 +142,15 @@ function formatGenerateOptionsMessage(name: string, description: string) {
   ].join('\n');
 }
 
-async function showCreateHandoff(ctx: MyContext, telegramId: string) {
-  try {
-    await checkCreateBotAllowed(telegramId);
-  } catch (error) {
-    const msg =
-      error instanceof Error
-        ? error.message
-        : 'You cannot create another bot right now.';
-    await ctx.reply(`❌ ${msg}`);
-    return;
-  }
-
-  ctx.session.step = 'awaiting_managed_bot';
+async function showCreateMethod(ctx: MyContext) {
   const message = await ctx.reply(
     [
       '✨ Create Bot',
       '',
-      "Tap below and follow Telegram's prompt.",
+      'How would you like to start?',
     ].join('\n'),
     {
-      reply_markup: createManagedBotKeyboard(),
+      reply_markup: createCreateMethodKeyboard(),
     },
   );
   ctx.session.flowMessageId = message.message_id;
@@ -334,7 +322,7 @@ messages.on('message:text', async (ctx) => {
   }
 
   if (!ctx.session.step && text === '➕ Create') {
-    await showCreateHandoff(ctx, telegramId);
+    await showCreateMethod(ctx);
     return;
   }
 
