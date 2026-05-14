@@ -12,13 +12,9 @@ export interface BackendBot {
   botId?: string;
   status?: string;
   isActive?: boolean;
-  activeProdVersionId?: string | null;
-  activeTestVersionId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
-
-export type BotEnvironment = 'test' | 'prod';
 
 export interface CreateBotResult {
   success: boolean;
@@ -31,7 +27,6 @@ export interface UpdateBotTokenResult {
   success: boolean;
   message: string;
   status: string;
-  environment: BotEnvironment;
   telegramUsername?: string | null;
 }
 
@@ -53,31 +48,25 @@ export interface BotStatus {
   status?: string;
   runtimeBotId: string;
   isActive: boolean;
-  testActive: boolean;
-  prodActive: boolean;
   desiredState?: {
     isActive: boolean;
-    testActive: boolean;
-    prodActive: boolean;
   };
   runtime?: {
     overall: string;
+    state?: string;
+    processName?: string;
     checkedAt: string;
-    test: {
-      state: string;
-      pm2Status?: string;
-      restartCount?: number;
-      pid?: number;
-    };
-    prod: {
-      state: string;
-      pm2Status?: string;
-      restartCount?: number;
-      pid?: number;
-    };
+    pm2Status?: string;
+    restartCount?: number;
+    pid?: number;
   };
-  hasTestToken: boolean;
-  hasProdToken: boolean;
+  hasToken: boolean;
+  currentVersion: {
+    id: string;
+    versionNum: number;
+    prompt: string;
+    createdAt: string;
+  } | null;
   latestVersion: {
     id: string;
     versionNum: number;

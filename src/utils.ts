@@ -7,13 +7,11 @@ export function formatDataPayload(type: string, content: string | undefined, pay
     case 'get_logs':
       if (payload.lines && Array.isArray(payload.lines)) {
         const logs = payload.lines.join('\n');
-        formatted += `*Environment:* ${payload.environment || 'auto'}\n\n`;
         formatted += `\`\`\`\n${logs}\n\`\`\``;
       }
       break;
     case 'get_stats':
       formatted += `📊 *Statistics*\n`;
-      formatted += `*Environment:* ${payload.environment || 'auto'}\n`;
       formatted += `*Current Runtime:* ${payload.isActive ? 'Running' : 'Stopped'}\n\n`;
       formatted += `Messages: *${payload.messageCount}*\n`;
       formatted += `Errors: *${payload.errorCount}*\n`;
@@ -24,7 +22,7 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       if (Array.isArray(payload)) {
         formatted += `🧾 *Version History*\n\n`;
         payload.forEach((v: any) => {
-          formatted += `*v${v.versionNum}* ${v.isProd ? '🟢(Prod)' : ''}${v.isTest ? '🟡(Test)' : ''}\n`;
+          formatted += `*v${v.versionNum}* ${v.isActive ? '🟢(Current)' : ''}\n`;
           formatted += `Prompt: _${v.prompt}_\n\n`;
         });
       }
@@ -37,20 +35,17 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       }
       if (payload.runtime) {
         formatted += `*Current Runtime:* ${formatRuntimeState(payload.runtime.overall)}\n`;
-        formatted += `*Test:* ${formatRuntimeState(payload.runtime.test?.state)}\n`;
-        formatted += `*Production:* ${formatRuntimeState(payload.runtime.prod?.state)}\n`;
         formatted += `*Checked:* ${formatCheckedAt(payload.runtime.checkedAt)}\n`;
       } else {
         formatted += `*Current Runtime:* ${payload.isActive ? 'Running' : 'Stopped'}\n`;
-        formatted += `*Test:* ${payload.testActive ? 'Running' : 'Stopped'}\n`;
-        formatted += `*Production:* ${payload.prodActive ? 'Running' : 'Stopped'}\n`;
       }
       if (payload.desiredState) {
         formatted += `\n*Stored State:* ${payload.desiredState.isActive ? 'Active' : 'Inactive'}\n`;
       }
-      if (payload.latestVersion) {
-        formatted += `\n*Latest Version:* v${payload.latestVersion.versionNum}\n`;
-        formatted += `*Prompt:* _${payload.latestVersion.prompt}_`;
+      if (payload.currentVersion || payload.latestVersion) {
+        const version = payload.currentVersion ?? payload.latestVersion;
+        formatted += `\n*Current Version:* v${version.versionNum}\n`;
+        formatted += `*Prompt:* _${version.prompt}_`;
       }
       break;
     case 'improve_bot':

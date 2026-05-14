@@ -91,7 +91,8 @@ function formatBotState(status?: BotStatus | null) {
 }
 
 function formatCurrentVersion(status?: BotStatus | null) {
-  return status?.latestVersion ? `v${status.latestVersion.versionNum}` : 'None';
+  const version = status?.currentVersion ?? status?.latestVersion;
+  return version ? `v${version.versionNum}` : 'None';
 }
 
 function formatManagementMessage(

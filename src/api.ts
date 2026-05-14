@@ -4,7 +4,6 @@ import type {
   BackendAction,
   BackendBot,
   BackendChatResponse,
-  BotEnvironment,
   BotStatus,
   ChatHistoryItem,
   CreateBotResult,
@@ -103,12 +102,10 @@ export async function chatWithUserBot(
 export async function fetchBotLogs(
   telegramId: string,
   botId: string,
-  environment: BotEnvironment = 'prod'
 ) {
   try {
     const response = await api.get(
       `/internal/bots/user/${telegramId}/${botId}/logs`,
-      { params: { environment } }
     );
     return response.data;
   } catch (error: unknown) {
@@ -119,12 +116,10 @@ export async function fetchBotLogs(
 export async function fetchBotStats(
   telegramId: string,
   botId: string,
-  environment: BotEnvironment = 'prod'
 ) {
   try {
     const response = await api.get(
       `/internal/bots/user/${telegramId}/${botId}/stats`,
-      { params: { environment } }
     );
     return response.data;
   } catch (error: unknown) {
@@ -207,7 +202,6 @@ export async function updateBotToken(
   input: {
     token: string;
     telegramUsername?: string;
-    environment?: BotEnvironment;
   }
 ): Promise<UpdateBotTokenResult> {
   try {
