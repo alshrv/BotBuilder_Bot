@@ -1,6 +1,7 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, GenerateMeta, MyContext } from './types.js';
 import {
+  checkCreateBotAllowed,
   createUserBot,
   deleteBot,
   deployBotVersion,
@@ -194,6 +195,22 @@ function formatVersionPickerMessage(versions: BotVersion[]) {
 }
 
 callbacks.callbackQuery('new_bot', async (ctx) => {
+  const telegramId = String(ctx.from?.id);
+
+  try {
+    await checkCreateBotAllowed(telegramId);
+  } catch (error) {
+    const msg =
+      error instanceof Error
+        ? error.message
+        : 'You cannot create another bot right now.';
+    await ctx.answerCallbackQuery({
+      text: msg.slice(0, 180),
+      show_alert: true,
+    });
+    return;
+  }
+
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_managed_bot';
   const keyboard = new Keyboard()

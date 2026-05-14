@@ -1,6 +1,11 @@
 import { Composer } from 'grammy';
 import type { BotStatus, GenerateMeta, MyContext } from './types.js';
-import { fetchBotStatus, improveBot, updateBotToken } from './api.js';
+import {
+  checkCreateBotAllowed,
+  fetchBotStatus,
+  improveBot,
+  updateBotToken,
+} from './api.js';
 import { formatBotUsername } from './bot-display.js';
 import {
   createFlowCancelKeyboard,
@@ -89,11 +94,11 @@ function defaultGenerateMeta(): GenerateMeta {
 
 function formatGenerateOptionsMessage(description: string) {
   return [
-    '✏️ *Describe your bot*',
+    '✏️ Bot description',
     '',
     description,
     '',
-    '⚙️ *Also generate with AI:*',
+    '⚙️ Also generate with AI:',
   ].join('\n');
 }
 
@@ -175,6 +180,19 @@ messages.on('message:managed_bot_created', async (ctx) => {
         }
       );
       delete ctx.session.flowMessageId;
+      return;
+    }
+
+    try {
+      await checkCreateBotAllowed(String(ctx.from?.id));
+    } catch (error) {
+      const msg =
+        error instanceof Error
+          ? error.message
+          : 'You cannot create another bot right now.';
+      clearFlowSession(ctx);
+      await removeReplyKeyboard(ctx);
+      await editFlowMessageOrReply(ctx, `❌ ${msg}`);
       return;
     }
     
@@ -276,9 +294,9 @@ messages.on('message:text', async (ctx) => {
       ctx.session.pendingBot.prompt = text;
       ctx.session.pendingBot.generateMeta ??= defaultGenerateMeta();
       ctx.session.step = 'awaiting_bot_generate_options';
+      await ctx.deleteMessage().catch(() => undefined);
 
       await editFlowMessageOrReply(ctx, formatGenerateOptionsMessage(text), {
-        parse_mode: 'Markdown',
         reply_markup: createGenerateOptionsKeyboard(
           ctx.session.pendingBot.generateMeta,
         ),

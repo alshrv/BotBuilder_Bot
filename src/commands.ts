@@ -1,9 +1,39 @@
 import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
-import { fetchUserBots } from './api.js';
+import { checkCreateBotAllowed, fetchUserBots } from './api.js';
 import { formatBotButtonLabel, formatBotListItem } from './bot-display.js';
 
 export const commands = new Composer<MyContext>();
+
+async function beginNewBotFlow(ctx: MyContext) {
+  const telegramId = String(ctx.from?.id);
+
+  try {
+    await checkCreateBotAllowed(telegramId);
+  } catch (error) {
+    const msg =
+      error instanceof Error
+        ? error.message
+        : 'You cannot create another bot right now.';
+    return ctx.reply(`❌ ${msg}`);
+  }
+
+  ctx.session.step = 'awaiting_managed_bot';
+  const keyboard = new Keyboard()
+    .requestManagedBot('➕ Create Managed Bot', 1)
+    .row()
+    .text('❌ Cancel')
+    .resized()
+    .oneTime();
+
+  const message = await ctx.reply(
+    "To create a new bot, click the button below and follow Telegram's prompt.",
+    {
+      reply_markup: keyboard,
+    },
+  );
+  ctx.session.flowMessageId = message.message_id;
+}
 
 commands.command('start', async (ctx) => {
   await ctx.reply(
@@ -34,18 +64,7 @@ commands.command('help', async (ctx) => {
 });
 
 commands.command('new', async (ctx) => {
-  ctx.session.step = 'awaiting_managed_bot';
-  const keyboard = new Keyboard()
-    .requestManagedBot('➕ Create Managed Bot', 1)
-    .row()
-    .text('❌ Cancel')
-    .resized()
-    .oneTime();
-
-  const message = await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
-    reply_markup: keyboard,
-  });
-  ctx.session.flowMessageId = message.message_id;
+  await beginNewBotFlow(ctx);
 });
 
 commands.command(['list', 'select'], async (ctx) => {

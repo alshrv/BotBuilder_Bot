@@ -51,7 +51,7 @@ export function createFlowCancelKeyboard() {
 }
 
 function checkboxLabel(checked: boolean, label: string) {
-  return `${checked ? '☑️' : '☐'} ${label}`;
+  return `${checked ? '✅' : '⬜'} ${label}`;
 }
 
 export function createGenerateOptionsKeyboard(meta: GenerateMeta) {

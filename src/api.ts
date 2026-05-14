@@ -59,6 +59,17 @@ export async function fetchUserBots(telegramId: string): Promise<BackendBot[]> {
   }
 }
 
+export async function checkCreateBotAllowed(telegramId: string) {
+  try {
+    const response = await api.get(
+      `/internal/bots/user/${telegramId}/create-eligibility`,
+    );
+    return response.data as { allowed: true };
+  } catch (error: unknown) {
+    throw toBackendApiError(error, 'You cannot create another bot right now.');
+  }
+}
+
 export async function createUserBot(
   telegramId: string,
   input: {
