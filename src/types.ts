@@ -38,6 +38,10 @@ export interface ImproveBotResult {
     id: string;
     versionNum: number;
     prompt: string;
+    originalPrompt?: string | null;
+    enhancedPrompt?: string | null;
+    promptWasImproved?: boolean;
+    improvementSkippedReason?: string | null;
     createdAt: string;
   };
 }
@@ -46,8 +50,23 @@ export interface BotVersion {
   id: string;
   versionNum: number;
   prompt: string;
+  originalPrompt?: string | null;
+  enhancedPrompt?: string | null;
+  promptWasImproved?: boolean;
+  improvementSkippedReason?: string | null;
   isActive?: boolean;
   createdAt?: string;
+}
+
+export interface PromptedVersion {
+  id: string;
+  versionNum: number;
+  prompt: string;
+  originalPrompt?: string | null;
+  enhancedPrompt?: string | null;
+  promptWasImproved?: boolean;
+  improvementSkippedReason?: string | null;
+  createdAt: string;
 }
 
 export interface BotStatus {
@@ -69,18 +88,8 @@ export interface BotStatus {
     pid?: number;
   };
   hasToken: boolean;
-  currentVersion: {
-    id: string;
-    versionNum: number;
-    prompt: string;
-    createdAt: string;
-  } | null;
-  latestVersion: {
-    id: string;
-    versionNum: number;
-    prompt: string;
-    createdAt: string;
-  } | null;
+  currentVersion: PromptedVersion | null;
+  latestVersion: PromptedVersion | null;
   createdAt: string;
   updatedAt: string;
 }

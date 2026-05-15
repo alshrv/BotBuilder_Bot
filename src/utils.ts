@@ -23,7 +23,8 @@ export function formatDataPayload(type: string, content: string | undefined, pay
         formatted += `🧾 *Version History*\n\n`;
         payload.forEach((v: any) => {
           formatted += `*v${v.versionNum}* ${v.isActive ? '🟢(Current)' : ''}\n`;
-          formatted += `Prompt: _${v.prompt}_\n\n`;
+          formatted += formatPromptImprovement(v);
+          formatted += `\n`;
         });
       }
       break;
@@ -45,18 +46,47 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       if (payload.currentVersion || payload.latestVersion) {
         const version = payload.currentVersion ?? payload.latestVersion;
         formatted += `\n*Current Version:* v${version.versionNum}\n`;
-        formatted += `*Prompt:* _${version.prompt}_`;
+        formatted += formatPromptImprovement(version).trimEnd();
       }
       break;
     case 'improve_bot':
       if (payload.version) {
         formatted += `*New Version (v${payload.version.versionNum}) Created!*\n`;
-        formatted += `Prompt: _${payload.version.prompt}_\n`;
+        formatted += formatPromptImprovement(payload.version);
       }
       break;
   }
 
   return formatted.trim();
+}
+
+function formatPromptImprovement(version: any): string {
+  if (version.promptWasImproved && version.enhancedPrompt) {
+    let formatted = `*Original Prompt:* _${version.originalPrompt || version.prompt}_\n`;
+    formatted += `*Improved Prompt:* _${version.enhancedPrompt}_\n`;
+    return formatted;
+  }
+
+  let formatted = `*Prompt:* _${version.prompt}_\n`;
+  if (version.improvementSkippedReason) {
+    formatted += `*Prompt Improver:* ${formatImprovementSkippedReason(version.improvementSkippedReason)}\n`;
+  }
+  return formatted;
+}
+
+function formatImprovementSkippedReason(reason: string): string {
+  switch (reason) {
+    case 'already_good':
+      return 'Skipped, prompt was already detailed';
+    case 'no_provider':
+      return 'Skipped, no LLM provider configured';
+    case 'improvement_failed':
+      return 'Skipped, improver failed';
+    case 'sanity_check_failed':
+      return 'Skipped, improved prompt failed validation';
+    default:
+      return `Skipped (${reason})`;
+  }
 }
 
 function formatRuntimeState(state?: string) {
