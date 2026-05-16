@@ -12,11 +12,13 @@ export function formatDataPayload(type: string, content: string | undefined, pay
       break;
     case 'get_stats':
       formatted += `📊 *Statistics*\n`;
-      formatted += `*Current Runtime:* ${payload.isActive ? 'Running' : 'Stopped'}\n\n`;
-      formatted += `Messages: *${payload.messageCount}*\n`;
-      formatted += `Errors: *${payload.errorCount}*\n`;
-      formatted += `Error Rate: *${payload.errorRate}*\n`;
-      formatted += `Avg Response Time: *${payload.responseTime}*`;
+      formatted += `*Current Runtime:* ${formatRuntimeState(payload.status)}\n\n`;
+      formatted += `Messages Today: *${payload.messages_today ?? 0}*\n`;
+      formatted += `Total Messages: *${payload.total_messages ?? 0}*\n`;
+      formatted += `Errors Today: *${payload.errors_today ?? 0}*\n`;
+      formatted += `Error Rate: *${formatStatsRate(payload.error_rate)}*\n`;
+      formatted += `Avg Response Time: *${formatStatsResponseTime(payload.avg_response_time_ms)}*\n`;
+      formatted += `Unique Users Today: *${payload.unique_users_today ?? 0}*`;
       break;
     case 'get_versions':
       if (Array.isArray(payload)) {
@@ -103,6 +105,17 @@ function formatRuntimeState(state?: string) {
     default:
       return 'Stopped';
   }
+}
+
+function formatStatsRate(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return `${Number.isFinite(numericValue) ? numericValue.toFixed(2) : '0.00'}%`;
+}
+
+function formatStatsResponseTime(value: unknown) {
+  if (value === null || value === undefined) return '--';
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? `${Math.round(numericValue)}ms` : '--';
 }
 
 function formatCheckedAt(value?: string) {
