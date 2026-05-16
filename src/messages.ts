@@ -10,6 +10,7 @@ import { formatBotUsername } from './bot-display.js';
 import {
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
+  createHomeKeyboard,
   createManagementKeyboard,
 } from './keyboards.js';
 import { formatDataPayload } from './utils.js';
@@ -251,13 +252,17 @@ messages.on('message:text', async (ctx) => {
       ctx.session.step === 'awaiting_update_managed_bot'
         ? 'update the token'
         : 'create your bot';
-    return ctx.reply(`Please use the button below to ${action}, or type /cancel to abort.`);
+    return ctx.reply(`Tap the Telegram button to ${action}.`, {
+      reply_markup: createFlowCancelKeyboard(),
+    });
   }
 
   if (ctx.session.step === 'awaiting_improve_prompt') {
     if (!ctx.session.activeBotId) {
       clearFlowSession(ctx);
-      return ctx.reply('Please select a bot to improve first using /list.');
+      return ctx.reply('Select a bot first.', {
+        reply_markup: createHomeKeyboard(),
+      });
     }
 
     ctx.session.step = undefined;
@@ -283,7 +288,10 @@ messages.on('message:text', async (ctx) => {
       await ctx.api.editMessageText(
         ctx.chat.id,
         progress.message_id,
-        `❌ ${msg}\n\nPlease try again or contact support if the issue persists.`,
+        `❌ ${msg}`,
+        {
+          reply_markup: createFlowCancelKeyboard(),
+        },
       );
     }
     return;
@@ -306,12 +314,22 @@ messages.on('message:text', async (ctx) => {
   }
 
   if (ctx.session.step === 'awaiting_bot_generate_options') {
-    return ctx.reply('Use the buttons above to choose AI fields, or type /cancel to abort.');
+    return ctx.reply('Use the buttons above to choose AI fields.', {
+      reply_markup: createFlowCancelKeyboard(),
+    });
   }
 
   if (!ctx.session.activeBotId) {
-    return ctx.reply('Please select a bot to manage first using /list or create a new one with /new.');
+    return ctx.reply('Create a bot or choose one to manage.', {
+      reply_markup: createHomeKeyboard(),
+    });
   }
 
-  return ctx.reply('Use the dashboard buttons to manage this bot.');
+  return ctx.reply(
+    await formatManagementMessage(ctx, 'Use the dashboard buttons.'),
+    {
+      parse_mode: 'Markdown',
+      reply_markup: createManagementKeyboard(),
+    },
+  );
 });

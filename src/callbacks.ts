@@ -20,6 +20,7 @@ import {
   createDeleteConfirmKeyboard,
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
+  createHomeKeyboard,
   createManagementKeyboard,
   createSettingsKeyboard,
   createTokenInvalidKeyboard,
@@ -220,7 +221,7 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
     .resized()
     .oneTime();
 
-  const message = await ctx.reply("To create a new bot, click the button below and follow Telegram's prompt.", {
+  const message = await ctx.reply("Tap below and follow Telegram's prompt.", {
     reply_markup: keyboard,
   });
   ctx.session.flowMessageId = message.message_id;
@@ -356,12 +357,17 @@ callbacks.callbackQuery('list_bots', async (ctx) => {
   } catch (error) {
     console.error('Error fetching bots:', error);
     return ctx.reply(
-      'I could not reach the BotBuilder backend. Please try again in a moment.'
+      'I could not reach the BotBuilder backend.',
+      {
+        reply_markup: createHomeKeyboard(),
+      },
     );
   }
 
   if (bots.length === 0) {
-    return ctx.reply('You haven\'t created any bots yet. Use /new to get started!');
+    return ctx.reply('No bots yet.', {
+      reply_markup: new InlineKeyboard().text('🆕 Create Bot', 'new_bot'),
+    });
   }
 
   const keyboard = new InlineKeyboard();
@@ -413,38 +419,6 @@ callbacks.callbackQuery(/^select_bot:(.+)$/, async (ctx) => {
     }
   } catch (error) {
     await ctx.answerCallbackQuery('Error selecting bot.');
-  }
-});
-
-callbacks.callbackQuery('get_stats_quick', async (ctx) => {
-  if (!ctx.session.activeBotId) return ctx.answerCallbackQuery('No active bot.');
-  const activeBotId = ctx.session.activeBotId;
-  await ctx.answerCallbackQuery();
-  await ctx.reply('Fetching stats...');
-
-  const telegramId = String(ctx.from?.id);
-  try {
-    const data = await fetchBotStats(telegramId, activeBotId);
-    const finalContent = formatDataPayload(
-      'get_stats',
-      'Here are the latest statistics for your bot.',
-      data
-    );
-    if (finalContent) {
-      await ctx.reply(finalContent, {
-        parse_mode: 'Markdown',
-        reply_markup: createBackToManagementKeyboard(),
-      });
-    } else {
-      await ctx.reply('Action completed.', {
-        reply_markup: createBackToManagementKeyboard(),
-      });
-    }
-  } catch (error) {
-    console.error('Stats error:', error);
-    await ctx.reply('Error fetching stats.', {
-      reply_markup: createBackToManagementKeyboard(),
-    });
   }
 });
 
@@ -510,7 +484,7 @@ callbacks.callbackQuery(/^bot_action:(logs|stats|status|versions)$/, async (ctx)
     });
   } catch (error) {
     console.error(`Bot action ${action} failed:`, error);
-    await ctx.reply('I could not load that bot detail right now.', {
+    await editMessageOrReply(ctx, 'I could not load that bot detail right now.', {
       reply_markup: createBackToManagementKeyboard(),
     });
   }
@@ -821,7 +795,9 @@ callbacks.callbackQuery(/^bot_control:(stop|restart|resume|delete)$/, async (ctx
       delete ctx.session.activeBotId;
       delete ctx.session.activeBotName;
       delete ctx.session.activeBotUsername;
-      await editMessageOrReply(ctx, result?.message || 'Bot deleted.');
+      await editMessageOrReply(ctx, result?.message || 'Bot deleted.', {
+        reply_markup: createHomeKeyboard(),
+      });
       return;
     }
 

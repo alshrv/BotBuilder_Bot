@@ -1,14 +1,22 @@
 import { InlineKeyboard } from 'grammy';
 import type { GenerateMeta } from './types.js';
 
+export function createHomeKeyboard() {
+  return new InlineKeyboard()
+    .text('🆕 Create Bot', 'new_bot')
+    .text('📋 My Bots', 'list_bots');
+}
+
 export function createManagementKeyboard() {
   return new InlineKeyboard()
     .text('✨ Improve Bot', 'bot_improve')
     .row()
-    .text('📜 Show Logs', 'bot_action:logs')
+    .text('🟢 Status', 'bot_action:status')
     .text('📊 Get Stats', 'bot_action:stats')
     .row()
+    .text('📜 Show Logs', 'bot_action:logs')
     .text('🔁 Change Version', 'bot_action:versions')
+    .row()
     .text('⚙️ Settings', 'bot_settings');
 }
 

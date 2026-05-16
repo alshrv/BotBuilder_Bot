@@ -2,6 +2,7 @@ import { Composer, InlineKeyboard, Keyboard } from 'grammy';
 import type { BackendBot, MyContext } from './types.js';
 import { checkCreateBotAllowed, fetchUserBots } from './api.js';
 import { formatBotButtonLabel, formatBotListItem } from './bot-display.js';
+import { createHomeKeyboard } from './keyboards.js';
 
 export const commands = new Composer<MyContext>();
 
@@ -15,7 +16,9 @@ async function beginNewBotFlow(ctx: MyContext) {
       error instanceof Error
         ? error.message
         : 'You cannot create another bot right now.';
-    return ctx.reply(`❌ ${msg}`);
+    return ctx.reply(`❌ ${msg}`, {
+      reply_markup: createHomeKeyboard(),
+    });
   }
 
   ctx.session.step = 'awaiting_managed_bot';
@@ -27,7 +30,7 @@ async function beginNewBotFlow(ctx: MyContext) {
     .oneTime();
 
   const message = await ctx.reply(
-    "To create a new bot, click the button below and follow Telegram's prompt.",
+    "Tap below and follow Telegram's prompt.",
     {
       reply_markup: keyboard,
     },
@@ -37,29 +40,21 @@ async function beginNewBotFlow(ctx: MyContext) {
 
 commands.command('start', async (ctx) => {
   await ctx.reply(
-    'Welcome to BotBuilder! 🤖\n\n' +
-    'I am your assistant to create and manage Telegram bots.\n\n' +
-    'Commands:\n' +
-    '/new - Create a new bot\n' +
-    '/list - List your bots\n' +
-    '/select - Select a bot to manage\n' +
-    '/help - Show this message',
+    '*BotBuilder*\n\nCreate a bot or choose one to manage.',
     {
-      reply_markup: new InlineKeyboard()
-        .text('🆕 Create Bot', 'new_bot')
-        .text('📋 List My Bots', 'list_bots'),
+      parse_mode: 'Markdown',
+      reply_markup: createHomeKeyboard(),
     }
   );
 });
 
 commands.command('help', async (ctx) => {
   await ctx.reply(
-    'Commands:\n' +
-    '/new - Create a new bot\n' +
-    '/list - List your bots and select one\n' +
-    '/select - Alias for /list\n' +
-    '/cancel - Cancel current operation\n\n' +
-    'Once a bot is selected, use the buttons below the bot dashboard to manage it.'
+    '*BotBuilder*\n\nUse the buttons below to create or manage bots.',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: createHomeKeyboard(),
+    },
   );
 });
 
@@ -76,12 +71,17 @@ commands.command(['list', 'select'], async (ctx) => {
   } catch (error) {
     console.error('Error fetching bots:', error);
     return ctx.reply(
-      'I could not reach the BotBuilder backend. Please try again in a moment.'
+      'I could not reach the BotBuilder backend.',
+      {
+        reply_markup: createHomeKeyboard(),
+      },
     );
   }
 
   if (bots.length === 0) {
-    return ctx.reply("You haven't created any bots yet. Use /new to get started!");
+    return ctx.reply('No bots yet.', {
+      reply_markup: new InlineKeyboard().text('🆕 Create Bot', 'new_bot'),
+    });
   }
 
   const keyboard = new InlineKeyboard();
