@@ -17,7 +17,7 @@ async function beginNewBotFlow(ctx: MyContext) {
         ? error.message
         : 'You cannot create another bot right now.';
     return ctx.reply(`❌ ${msg}`, {
-      reply_markup: createHomeKeyboard(),
+      reply_markup: createHomeKeyboard({ showCreateBot: false }),
     });
   }
 
@@ -38,12 +38,23 @@ async function beginNewBotFlow(ctx: MyContext) {
   ctx.session.flowMessageId = message.message_id;
 }
 
+async function createHomeKeyboardForUser(ctx: MyContext) {
+  const telegramId = String(ctx.from?.id);
+
+  try {
+    await checkCreateBotAllowed(telegramId);
+    return createHomeKeyboard();
+  } catch {
+    return createHomeKeyboard({ showCreateBot: false });
+  }
+}
+
 commands.command('start', async (ctx) => {
   await ctx.reply(
     '*BotBuilder*\n\nCreate a bot or choose one to manage.',
     {
       parse_mode: 'Markdown',
-      reply_markup: createHomeKeyboard(),
+      reply_markup: await createHomeKeyboardForUser(ctx),
     }
   );
 });
@@ -53,7 +64,7 @@ commands.command('help', async (ctx) => {
     '*BotBuilder*\n\nUse the buttons below to create or manage bots.',
     {
       parse_mode: 'Markdown',
-      reply_markup: createHomeKeyboard(),
+      reply_markup: await createHomeKeyboardForUser(ctx),
     },
   );
 });
@@ -73,7 +84,7 @@ commands.command(['list', 'select'], async (ctx) => {
     return ctx.reply(
       'I could not reach the BotBuilder backend.',
       {
-        reply_markup: createHomeKeyboard(),
+        reply_markup: createHomeKeyboard({ showCreateBot: false }),
       },
     );
   }

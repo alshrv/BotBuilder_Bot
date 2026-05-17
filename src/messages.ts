@@ -38,6 +38,7 @@ async function editFlowMessageOrReply(
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
+  delete ctx.session.createSourceMessageId;
 }
 
 function formatBotState(status?: BotStatus | null) {
@@ -101,6 +102,15 @@ function formatGenerateOptionsMessage(description: string) {
     '',
     '⚙️ Also generate with AI:',
   ].join('\n');
+}
+
+async function createHomeKeyboardForUser(telegramId: string) {
+  try {
+    await checkCreateBotAllowed(telegramId);
+    return createHomeKeyboard();
+  } catch {
+    return createHomeKeyboard({ showCreateBot: false });
+  }
 }
 
 async function cancelFlow(ctx: MyContext) {
@@ -261,7 +271,7 @@ messages.on('message:text', async (ctx) => {
     if (!ctx.session.activeBotId) {
       clearFlowSession(ctx);
       return ctx.reply('Select a bot first.', {
-        reply_markup: createHomeKeyboard(),
+        reply_markup: await createHomeKeyboardForUser(telegramId),
       });
     }
 
@@ -321,7 +331,7 @@ messages.on('message:text', async (ctx) => {
 
   if (!ctx.session.activeBotId) {
     return ctx.reply('Create a bot or choose one to manage.', {
-      reply_markup: createHomeKeyboard(),
+      reply_markup: await createHomeKeyboardForUser(telegramId),
     });
   }
 

@@ -80,6 +80,7 @@ function isLiveLogsActive(ctx: MyContext) {
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
+  delete ctx.session.createSourceMessageId;
 }
 
 function isTokenInvalid(status?: string | null) {
@@ -138,6 +139,21 @@ async function getActiveBotStatus(ctx: MyContext) {
 
   const telegramId = String(ctx.from?.id);
   return fetchBotStatus(telegramId, ctx.session.activeBotId);
+}
+
+async function hideCreateBotButton(ctx: MyContext) {
+  if (!ctx.chat?.id || !ctx.session.createSourceMessageId) return;
+
+  await ctx.api
+    .editMessageReplyMarkup(
+      ctx.chat.id,
+      ctx.session.createSourceMessageId,
+      {
+        reply_markup: createHomeKeyboard({ showCreateBot: false }),
+      },
+    )
+    .catch(() => undefined);
+  delete ctx.session.createSourceMessageId;
 }
 
 async function activateBotFromCallback(ctx: MyContext, botId: string) {
@@ -209,10 +225,19 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
       text: msg.slice(0, 180),
       show_alert: true,
     });
+    await ctx
+      .editMessageReplyMarkup({
+        reply_markup: createHomeKeyboard({ showCreateBot: false }),
+      })
+      .catch(() => undefined);
     return;
   }
 
   await ctx.answerCallbackQuery();
+  const sourceMessageId = ctx.callbackQuery.message?.message_id;
+  if (sourceMessageId) {
+    ctx.session.createSourceMessageId = sourceMessageId;
+  }
   ctx.session.step = 'awaiting_managed_bot';
   const keyboard = new Keyboard()
     .requestManagedBot('➕ Create Managed Bot', 1)
@@ -314,6 +339,7 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
 
     const botName = pendingBot.name;
     const botUsername = pendingBot.username;
+    await hideCreateBotButton(ctx);
     clearFlowSession(ctx);
 
     if (botUsername) {
@@ -359,7 +385,7 @@ callbacks.callbackQuery('list_bots', async (ctx) => {
     return ctx.reply(
       'I could not reach the BotBuilder backend.',
       {
-        reply_markup: createHomeKeyboard(),
+        reply_markup: createHomeKeyboard({ showCreateBot: false }),
       },
     );
   }

@@ -1,10 +1,17 @@
 import { InlineKeyboard } from 'grammy';
 import type { GenerateMeta } from './types.js';
 
-export function createHomeKeyboard() {
-  return new InlineKeyboard()
-    .text('🆕 Create Bot', 'new_bot')
-    .text('📋 My Bots', 'list_bots');
+export function createHomeKeyboard(
+  options: { showCreateBot?: boolean } = {},
+) {
+  const { showCreateBot = true } = options;
+  const keyboard = new InlineKeyboard();
+
+  if (showCreateBot) {
+    keyboard.text('🆕 Create Bot', 'new_bot');
+  }
+
+  return keyboard.text('📋 My Bots', 'list_bots');
 }
 
 export function createManagementKeyboard() {
