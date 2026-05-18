@@ -80,6 +80,7 @@ function isLiveLogsActive(ctx: MyContext) {
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
+  delete ctx.session.documentContext;
   delete ctx.session.createSourceMessageId;
 }
 
@@ -239,6 +240,7 @@ callbacks.callbackQuery('new_bot', async (ctx) => {
     ctx.session.createSourceMessageId = sourceMessageId;
   }
   ctx.session.step = 'awaiting_managed_bot';
+  delete ctx.session.documentContext;
   const keyboard = new Keyboard()
     .requestManagedBot('➕ Create Managed Bot', 1)
     .row()
@@ -310,6 +312,7 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
   );
 
   const telegramId = String(ctx.from?.id);
+  const documentContext = ctx.session.documentContext;
   try {
     const createInput: {
       name: string;
@@ -317,6 +320,7 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
       token: string;
       telegramUsername?: string;
       generateMeta?: GenerateMeta;
+      documentContext?: string;
     } = {
       name: pendingBot.name,
       prompt: pendingBot.prompt,
@@ -327,6 +331,9 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
     }
     if (pendingBot.username) {
       createInput.telegramUsername = pendingBot.username;
+    }
+    if (documentContext) {
+      createInput.documentContext = documentContext;
     }
 
     const result = await createUserBot(telegramId, createInput);
@@ -370,6 +377,8 @@ callbacks.callbackQuery('generate_bot_confirm', async (ctx) => {
         reply_markup: createFlowCancelKeyboard(),
       },
     );
+  } finally {
+    delete ctx.session.documentContext;
   }
 });
 
@@ -644,6 +653,7 @@ callbacks.callbackQuery('bot_improve', async (ctx) => {
 
   await ctx.answerCallbackQuery();
   ctx.session.step = 'awaiting_improve_prompt';
+  delete ctx.session.documentContext;
   const message = await ctx.reply(
     'Tell me what to improve in this bot.',
     {

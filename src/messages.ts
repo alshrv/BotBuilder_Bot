@@ -8,6 +8,14 @@ import {
 } from './api.js';
 import { formatBotUsername } from './bot-display.js';
 import {
+  DOCUMENT_READ_FAILED_MESSAGE,
+  DOCUMENT_TOO_LARGE_MESSAGE,
+  formatDocumentPreview,
+  getDocumentUploadError,
+  readDocumentContext,
+  UNSUPPORTED_DOCUMENT_MESSAGE,
+} from './document-context.js';
+import {
   createFlowCancelKeyboard,
   createGenerateOptionsKeyboard,
   createHomeKeyboard,
@@ -38,6 +46,7 @@ async function editFlowMessageOrReply(
 function clearFlowSession(ctx: MyContext) {
   ctx.session.step = undefined;
   ctx.session.pendingBot = undefined;
+  delete ctx.session.documentContext;
   delete ctx.session.createSourceMessageId;
 }
 
@@ -142,6 +151,54 @@ async function cancelFlow(ctx: MyContext) {
   delete ctx.session.flowMessageId;
 }
 
+function isDocumentContextStep(ctx: MyContext) {
+  return (
+    ctx.session.step === 'awaiting_bot_prompt' ||
+    ctx.session.step === 'awaiting_improve_prompt'
+  );
+}
+
+async function handleDocumentContext(ctx: MyContext) {
+  const uploadError = getDocumentUploadError(ctx);
+  if (uploadError) {
+    const message =
+      uploadError.reason === 'too_large'
+        ? DOCUMENT_TOO_LARGE_MESSAGE
+        : UNSUPPORTED_DOCUMENT_MESSAGE;
+    await ctx.reply(message, {
+      reply_markup: createFlowCancelKeyboard(),
+    });
+    return;
+  }
+
+  await ctx.reply('⏳ Reading your document...');
+  const result = await readDocumentContext(ctx);
+
+  if (!result.ok) {
+    const message =
+      result.reason === 'too_large'
+        ? DOCUMENT_TOO_LARGE_MESSAGE
+        : result.reason === 'unsupported'
+          ? UNSUPPORTED_DOCUMENT_MESSAGE
+          : DOCUMENT_READ_FAILED_MESSAGE;
+    await ctx.reply(message, {
+      reply_markup: createFlowCancelKeyboard(),
+    });
+    return;
+  }
+
+  ctx.session.documentContext = result.text;
+
+  const nextInstruction =
+    ctx.session.step === 'awaiting_improve_prompt'
+      ? 'Now tell me what to improve with this information:'
+      : 'Now describe what your bot should do with this information:';
+
+  await ctx.reply(formatDocumentPreview(result.text, nextInstruction), {
+    reply_markup: createFlowCancelKeyboard(),
+  });
+}
+
 // Managed Bot Created handler
 messages.on('message:managed_bot_created', async (ctx) => {
   const managedBot = ctx.message.managed_bot_created.bot;
@@ -218,6 +275,7 @@ messages.on('message:managed_bot_created', async (ctx) => {
       ctx.session.pendingBot.username = botUsername;
     }
     ctx.session.step = 'awaiting_bot_prompt';
+    delete ctx.session.documentContext;
     
     await editFlowMessageOrReply(
       ctx,
@@ -238,6 +296,20 @@ messages.on('message:managed_bot_created', async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
+});
+
+messages.on('message:document', async (ctx) => {
+  if (!isDocumentContextStep(ctx)) return;
+
+  await handleDocumentContext(ctx);
+});
+
+messages.on('message:photo', async (ctx) => {
+  if (!isDocumentContextStep(ctx)) return;
+
+  await ctx.reply(UNSUPPORTED_DOCUMENT_MESSAGE, {
+    reply_markup: createFlowCancelKeyboard(),
+  });
 });
 
 // Text message handler
@@ -279,9 +351,17 @@ messages.on('message:text', async (ctx) => {
     const activeBotId = ctx.session.activeBotId;
     const progress = await ctx.reply('Improving bot... this might take a minute ⏳');
     await ctx.replyWithChatAction('typing');
+    const documentContext = ctx.session.documentContext;
 
     try {
-      const result = await improveBot(telegramId, activeBotId, { prompt: text });
+      const input: { prompt: string; documentContext?: string } = {
+        prompt: text,
+      };
+      if (documentContext) {
+        input.documentContext = documentContext;
+      }
+
+      const result = await improveBot(telegramId, activeBotId, input);
       await ctx.api.editMessageText(
         ctx.chat.id,
         progress.message_id,
@@ -303,6 +383,8 @@ messages.on('message:text', async (ctx) => {
           reply_markup: createFlowCancelKeyboard(),
         },
       );
+    } finally {
+      delete ctx.session.documentContext;
     }
     return;
   }

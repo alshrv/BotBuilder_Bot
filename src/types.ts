@@ -100,6 +100,7 @@ export interface SessionData {
   activeBotUsername?: string;
   flowMessageId?: number;
   createSourceMessageId?: number;
+  documentContext?: string;
   step?:
     | 'awaiting_managed_bot'
     | 'awaiting_bot_prompt'

@@ -78,6 +78,7 @@ export async function createUserBot(
     token: string;
     telegramUsername?: string;
     generateMeta?: GenerateMeta;
+    documentContext?: string;
   }
 ): Promise<CreateBotResult> {
   try {
@@ -165,7 +166,7 @@ export async function deployBotVersion(
 export async function improveBot(
   telegramId: string,
   botId: string,
-  input: { prompt: string },
+  input: { prompt: string; documentContext?: string },
 ): Promise<ImproveBotResult> {
   try {
     const response = await api.post(
