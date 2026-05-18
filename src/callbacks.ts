@@ -25,7 +25,7 @@ import {
   createSettingsKeyboard,
   createTokenInvalidKeyboard,
 } from './keyboards.js';
-import { formatDataPayload } from './utils.js';
+import { formatDataPayload, truncateForTelegram } from './utils.js';
 import {
   formatBotButtonLabel,
   formatBotListItem,
@@ -204,7 +204,7 @@ function formatVersionPickerMessage(versions: BotVersion[]) {
   const versionLines = versions
     .map((version) => {
       const marker = version.isActive ? ' 🟢 Current' : '';
-      return `*v${version.versionNum}*${marker}\n_${version.prompt}_`;
+      return `*v${version.versionNum}*${marker}\n_${truncateForTelegram(version.prompt, 240)}_`;
     })
     .join('\n\n');
 

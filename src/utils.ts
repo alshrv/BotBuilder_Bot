@@ -1,3 +1,13 @@
+const PROMPT_PREVIEW_LIMIT = 900;
+
+export function truncateForTelegram(text: string, maxLength = PROMPT_PREVIEW_LIMIT) {
+  const normalized = String(text ?? '').trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const hiddenCharacters = normalized.length - maxLength;
+  return `${normalized.slice(0, maxLength).trimEnd()}...\n(${hiddenCharacters} more characters hidden)`;
+}
+
 export function formatDataPayload(type: string, content: string | undefined, payload: any): string {
   if (!payload) return content || 'Action completed.';
 
@@ -64,12 +74,12 @@ export function formatDataPayload(type: string, content: string | undefined, pay
 
 function formatPromptImprovement(version: any): string {
   if (version.promptWasImproved && version.enhancedPrompt) {
-    let formatted = `*Original Prompt:* _${version.originalPrompt || version.prompt}_\n`;
-    formatted += `*Improved Prompt:* _${version.enhancedPrompt}_\n`;
+    let formatted = `*Original Prompt Preview:* _${truncateForTelegram(version.originalPrompt || version.prompt)}_\n`;
+    formatted += `*Improved Prompt Preview:* _${truncateForTelegram(version.enhancedPrompt)}_\n`;
     return formatted;
   }
 
-  let formatted = `*Prompt:* _${version.prompt}_\n`;
+  let formatted = `*Prompt Preview:* _${truncateForTelegram(version.prompt)}_\n`;
   if (version.improvementSkippedReason) {
     formatted += `*Prompt Improver:* ${formatImprovementSkippedReason(version.improvementSkippedReason)}\n`;
   }
